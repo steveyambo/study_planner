@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
@@ -28,6 +30,12 @@ export default function Home() {
             Les révisions seront réparties à J+1, J+3, J+7 et J+14.
           </p>
         </div>
+        <Link
+          href="/dashboard"
+          className="mt-8 inline-flex rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600"
+        >
+          Ouvrir le tableau de bord
+        </Link>
       </section>
     </main>
   );
