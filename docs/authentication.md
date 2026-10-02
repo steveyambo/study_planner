@@ -58,3 +58,16 @@ les logs Auth et la configuration SMTP si le quota empeche les tests.
 References :
 - https://supabase.com/docs/reference/javascript/auth-resend
 - https://supabase.com/docs/guides/auth/passwords
+
+## Diagnostic du premier retour de confirmation
+
+La capture Supabase montre le compte confirme ; elle ne prouve pas que la session
+a ete creee. L'ancien callback masquait toutes les erreurs sous un message unique
+et n'enregistrait pas leur code. La cause historique ne peut donc pas etre deduite
+de ce message. Les logs Auth autour de l'echange `/token` sont a consulter.
+
+Le callback distingue maintenant code absent, verificateur PKCE absent ou
+incorrect, tentative expiree, tentative introuvable et autre erreur d'echange.
+Il journalise uniquement le code d'erreur, son statut et une categorie fixe.
+Aucun code de connexion, URL complete, cookie ou mot de passe n'est journalise
+par ce diagnostic. Le diagnostic historique reste ouvert ; ne pas recreer le compte.

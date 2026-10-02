@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth/register-form";
 import { ResendConfirmationForm } from "@/components/auth/resend-confirmation-form";
+import { getConfirmationMessage } from "@/lib/supabase/confirmation-errors";
 
 export const metadata: Metadata = { title: "Inscription | Study Planner" };
 
 export default async function RegisterPage({ searchParams }: {
-  searchParams: Promise<{ confirmation?: string | string[] }>;
+  searchParams: Promise<{ confirmation?: string | string[]; reason?: string | string[] }>;
 }) {
   const params = await searchParams;
   return (
@@ -15,7 +16,7 @@ export default async function RegisterPage({ searchParams }: {
         <Link href="/" className="font-semibold text-indigo-700">Study Planner</Link>
         <h1 className="mt-6 text-3xl font-bold tracking-tight">Créer ton compte</h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">Prépare ton espace personnel pour organiser tes révisions.</p>
-        <RegisterForm confirmationFailed={params.confirmation === "failed"} />
+        <RegisterForm confirmationError={params.confirmation === "failed" ? getConfirmationMessage(params.reason) : ""} />
         <ResendConfirmationForm />
       </section>
     </main>

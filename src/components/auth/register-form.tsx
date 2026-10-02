@@ -4,12 +4,10 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export function RegisterForm({ confirmationFailed }: { confirmationFailed: boolean }) {
+export function RegisterForm({ confirmationError }: { confirmationError: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(confirmationFailed
-    ? "La confirmation n’a pas abouti. Le lien peut avoir déjà été utilisé, ou le navigateur ne possède pas les informations de ton inscription. Demande un nouvel email ci-dessous et ouvre-le dans ce même navigateur."
-    : "");
+  const [error, setError] = useState(confirmationError);
   const [sent, setSent] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
