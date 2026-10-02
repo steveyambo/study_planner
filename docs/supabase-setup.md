@@ -31,3 +31,13 @@ de sécurité, le client serveur et le renouvellement des sessions seront ajout�
 aux étapes base de données et authentification, avant toute gestion de données utilisateur.
 
 Documentation : https://supabase.com/docs/guides/auth/server-side/creating-a-client
+
+## Validation de la connexion — 2 octobre 2026
+
+- Les deux variables requises sont renseignées dans `.env.local`.
+- Une requête en lecture seule à `/auth/v1/settings` avec la clé publique a répondu HTTP 200.
+- `.env.local` est bien exclu de Git.
+
+La connexion au service Auth est validée. Ce contrôle ne valide pas encore
+les tables, les politiques de sécurité ou les parcours d'inscription et de connexion.
+La prochaine étape est la création du schéma de base de données.
