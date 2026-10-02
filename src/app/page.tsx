@@ -31,6 +31,12 @@ export default function Home() {
           </p>
         </div>
         <Link
+          href="/register"
+          className="mt-8 mr-4 inline-flex rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600"
+        >
+          Créer mon compte
+        </Link>
+        <Link
           href="/dashboard"
           className="mt-8 inline-flex rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600"
         >
