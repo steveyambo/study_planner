@@ -59,7 +59,7 @@ priorites seront traites dans les phases de planification du guide.
 
 Cette migration doit etre executee une seule fois sur un projet sans ces tables.
 Elle ne supprime aucune table existante et s'annule en cas d'erreur.
-Le script est prepare mais son application distante reste a confirmer.
+Le script a ete applique dans Supabase : la capture du schema montre les sept tables et leurs relations.
 L'isolation entre deux comptes sera testee avant de terminer l'authentification.
 
 Validation locale effectuee sur PostgreSQL 17 : migration executee, sept tables
@@ -73,3 +73,12 @@ etre completes par des tests de vrais comptes Supabase lors de l'authentificatio
 References :
 - https://supabase.com/docs/guides/database/postgres/row-level-security
 - https://supabase.com/docs/guides/auth/managing-user-data
+
+## Verification distante du schema — 2 octobre 2026
+
+Les sept endpoints REST ont ete controles avec la cle publique sans session
+utilisateur. Chacun renvoie HTTP 401 avec le code PostgreSQL `42501`
+(permission refusee), conformement au retrait des droits du role `anon`.
+Ce controle confirme le refus de l'acces anonyme ; il ne suffit pas a valider
+les politiques RLS entre vrais utilisateurs connectes. Ce test reste prevu
+pendant la phase d'authentification.
