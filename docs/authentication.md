@@ -97,3 +97,13 @@ entierement validee.
 Test utilisateur : se connecter avec un compte confirme, verifier son nom,
 recharger le tableau de bord, se deconnecter puis tenter d'ouvrir `/dashboard`.
 La page doit alors renvoyer vers `/login`.
+
+## Correction du retour apres connexion
+
+L'utilisateur restait sur `/login`. Le formulaire utilise maintenant une Server
+Action : connexion Supabase, ecriture des cookies avec erreurs non masquees,
+invalidation du cache de layout, puis redirection serveur vers `/dashboard`.
+Il ne lance plus `router.replace` et `router.refresh` a la suite apres une
+connexion navigateur. La cause historique reste a confirmer : aucune trace
+ne permet d'affirmer que le cache etait seul responsable.
+Le parcours avec les identifiants reels doit etre reteste par l'utilisateur.
