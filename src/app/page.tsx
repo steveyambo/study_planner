@@ -37,10 +37,10 @@ export default function Home() {
           Créer mon compte
         </Link>
         <Link
-          href="/dashboard"
+          href="/login"
           className="mt-8 inline-flex rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600"
         >
-          Ouvrir le tableau de bord
+          Se connecter
         </Link>
       </section>
     </main>

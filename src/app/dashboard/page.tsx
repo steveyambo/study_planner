@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { EmptyCard } from "@/components/dashboard/empty-card";
+import { requireUser } from "@/lib/supabase/require-user";
 
 export const metadata: Metadata = {
   title: "Tableau de bord | Study Planner",
 };
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  await requireUser();
   return (
     <>
       <p className="text-sm font-semibold text-indigo-600">Ton espace de révision</p>

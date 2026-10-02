@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, fullName }: { children: ReactNode; fullName: string }) {
   return (
     <div className="min-h-screen">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-4">
@@ -17,6 +18,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               Tableau de bord
             </Link>
           </nav>
+          <div className="flex flex-wrap items-center gap-3">
+            {fullName && <p className="max-w-64 break-words text-sm text-slate-600">Bonjour {fullName}</p>}
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-10">

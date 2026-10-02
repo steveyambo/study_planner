@@ -71,3 +71,29 @@ incorrect, tentative expiree, tentative introuvable et autre erreur d'echange.
 Il journalise uniquement le code d'erreur, son statut et une categorie fixe.
 Aucun code de connexion, URL complete, cookie ou mot de passe n'est journalise
 par ce diagnostic. Le diagnostic historique reste ouvert ; ne pas recreer le compte.
+
+L'utilisateur a ensuite confirme avec succes une nouvelle adresse et estime
+avoir ouvert le premier lien dans un autre navigateur. Cette explication est
+compatible avec PKCE ; la cause historique n'est pas prouvee faute de traces.
+
+## Partie 3 : connexion, protection et deconnexion
+
+- `/login` appelle `signInWithPassword` et distingue email non confirme,
+  limite de tentatives et identifiants refuses.
+- Le proxy redirige les visiteurs sans identite valide vers `/login` pour les
+  six routes privees du guide, y compris leurs sous-routes.
+- Le tableau de bord verifie aussi l'identite dans son rendu serveur avec
+  `requireUser`, puis charge uniquement le nom du profil correspondant.
+- Le bouton de deconnexion ferme la session du navigateur (`scope: local`).
+- Les utilisateurs connectes sont rediriges depuis `/login` et `/register`
+  vers `/dashboard`. Les reponses privees ne sont pas mises en cache.
+
+Verification : ESLint et TypeScript sans erreur, page login HTTP 200,
+redirection sans session de dashboard et des autres routes privees vers login.
+Le test reel connexion/deconnexion, le rechargement avec session et l'isolation
+entre deux comptes connectes restent a effectuer ; cette phase n'est pas encore
+entierement validee.
+
+Test utilisateur : se connecter avec un compte confirme, verifier son nom,
+recharger le tableau de bord, se deconnecter puis tenter d'ouvrir `/dashboard`.
+La page doit alors renvoyer vers `/login`.

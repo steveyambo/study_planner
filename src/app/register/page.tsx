@@ -18,6 +18,7 @@ export default async function RegisterPage({ searchParams }: {
         <p className="mt-3 text-sm leading-6 text-slate-600">Prépare ton espace personnel pour organiser tes révisions.</p>
         <RegisterForm confirmationError={params.confirmation === "failed" ? getConfirmationMessage(params.reason) : ""} />
         <ResendConfirmationForm />
+        <p className="mt-6 text-sm text-slate-600">Déjà un compte ? <Link href="/login" className="font-semibold text-indigo-700 underline">Se connecter</Link></p>
       </section>
     </main>
   );

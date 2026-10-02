@@ -36,9 +36,27 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Vérifie le jeton et déclenche son renouvellement lorsque nécessaire.
-  // Les contrôles d'accès seront ajoutés avec les pages d'authentification.
-  await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getClaims();
+  const authenticated = !error && Boolean(data?.claims.sub);
+  const pathname = request.nextUrl.pathname;
+  const privateRoutes = ["/dashboard", "/courses", "/exams", "/availability", "/calendar", "/settings"];
+  const privateRoute = privateRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
+  let destination: string | undefined;
+  if (privateRoute && !authenticated) destination = "/login";
+  if (authenticated && (pathname === "/login" || pathname === "/register")) destination = "/dashboard";
+
+  if (destination) {
+    const redirect = NextResponse.redirect(new URL(destination, request.url));
+    for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
+    for (const name of ["cache-control", "expires", "pragma"]) {
+      const value = response.headers.get(name);
+      if (value) redirect.headers.set(name, value);
+    }
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return redirect;
+  }
+  if (privateRoute) response.headers.set("Cache-Control", "private, no-store");
 
   return response;
 }
