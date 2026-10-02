@@ -107,3 +107,15 @@ Il ne lance plus `router.replace` et `router.refresh` a la suite apres une
 connexion navigateur. La cause historique reste a confirmer : aucune trace
 ne permet d'affirmer que le cache etait seul responsable.
 Le parcours avec les identifiants reels doit etre reteste par l'utilisateur.
+
+## Correction de la navigation avec URL modifiee mais contenu conserve
+
+Apres le premier correctif, l'utilisateur rapporte que l'URL change mais que
+le formulaire de connexion reste affiche. Le formulaire fait desormais un POST
+HTML natif vers `/auth/login`, sans navigation React ni Server Action.
+La reponse HTTP 303 contient directement les cookies de session et la destination
+`/dashboard`. Le navigateur charge ensuite un nouveau document.
+Le POST refuse les origines externes ; les messages d'erreur sont des categories
+fixes, et aucun identifiant n'est ajoute a l'URL. Les champs restent actifs pendant
+la soumission pour etre inclus dans le POST ; seul le bouton est desactive.
+Le resultat avec un compte reel reste a valider dans le navigateur de l'utilisateur.
