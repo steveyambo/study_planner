@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth/register-form";
+import { ResendConfirmationForm } from "@/components/auth/resend-confirmation-form";
 
 export const metadata: Metadata = { title: "Inscription | Study Planner" };
 
@@ -15,6 +16,7 @@ export default async function RegisterPage({ searchParams }: {
         <h1 className="mt-6 text-3xl font-bold tracking-tight">Créer ton compte</h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">Prépare ton espace personnel pour organiser tes révisions.</p>
         <RegisterForm confirmationFailed={params.confirmation === "failed"} />
+        <ResendConfirmationForm />
       </section>
     </main>
   );

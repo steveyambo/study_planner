@@ -40,3 +40,21 @@ Le test reel d'inscription et de reception de l'email reste a effectuer avec
 une adresse accessible a l'utilisateur. Aucun compte de test distant n'a ete cree.
 
 Reference : https://supabase.com/docs/reference/javascript/auth-signup
+
+## Renvoi de confirmation
+
+Un formulaire sur `/register` appelle `auth.resend({ type: 'signup', email })`
+pour les comptes existants non confirmes. Il impose une minute entre demandes
+dans l'interface et signale les limites d'envoi renvoyees par Supabase.
+Une reponse sans erreur ne prouve pas la livraison de l'email.
+
+Le message d'echec de callback n'affirme plus que le lien est expire : cette
+route peut aussi echouer faute de code ou de cookie PKCE dans le navigateur.
+Utiliser uniquement le nouveau lien, dans le navigateur de la demande.
+Si le compte est deja confirme, il faut se connecter plutot que se reinscrire.
+Le service email integre Supabase a un quota de 2 emails par heure ; verifier
+les logs Auth et la configuration SMTP si le quota empeche les tests.
+
+References :
+- https://supabase.com/docs/reference/javascript/auth-resend
+- https://supabase.com/docs/guides/auth/passwords

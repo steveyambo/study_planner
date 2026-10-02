@@ -8,7 +8,7 @@ export function RegisterForm({ confirmationFailed }: { confirmationFailed: boole
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(confirmationFailed
-    ? "Le lien de confirmation est invalide ou expiré. Ouvre le lien dans le navigateur utilisé pour ton inscription."
+    ? "La confirmation n’a pas abouti. Le lien peut avoir déjà été utilisé, ou le navigateur ne possède pas les informations de ton inscription. Demande un nouvel email ci-dessous et ouvre-le dans ce même navigateur."
     : "");
   const [sent, setSent] = useState(false);
 
