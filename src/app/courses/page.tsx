@@ -4,6 +4,7 @@ import { CourseForm } from "@/components/courses/course-form";
 import { DeleteCourseForm } from "@/components/courses/delete-course-form";
 import type { Course, CourseSession } from "@/types/course";
 import { SessionList } from "@/components/courses/session-list";
+import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
 
 export const metadata: Metadata = { title: "Mes cours | Study Planner" };
 const messages: Record<string, string> = {
@@ -19,6 +20,9 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
   const { supabase, userId } = await requireUser();
   const { data, error } = await supabase.from("courses").select("id,code,name,color,revision_multiplier,course_sessions(id,course_id,day_of_week,start_time,end_time)").eq("user_id", userId).order("created_at", { ascending: false });
   if (error) throw new Error("Impossible de charger les cours.");
+  const { data: rule, error: ruleError } = await supabase.from("revision_rules").select("intervals").eq("user_id", userId).maybeSingle();
+  if (ruleError) throw new Error("Impossible de charger les intervalles de révision.");
+  const intervals = (rule?.intervals ?? DEFAULT_REVISION_INTERVALS) as number[];
   const courses = (data ?? []) as (Course & { course_sessions: CourseSession[] })[];
   const { result } = await searchParams;
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
@@ -47,7 +51,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
                 <summary className="cursor-pointer text-sm font-semibold text-indigo-700">Modifier le cours</summary>
                 <div className="mt-4"><CourseForm course={course} /></div>
               </details>
-              <SessionList courseId={course.id} multiplier={course.revision_multiplier} sessions={course.course_sessions} />
+              <SessionList courseId={course.id} multiplier={course.revision_multiplier} sessions={course.course_sessions} intervals={intervals} />
               <DeleteCourseForm id={course.id} code={course.code} />
             </article>
           ))}
