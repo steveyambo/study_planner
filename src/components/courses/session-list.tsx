@@ -4,9 +4,10 @@ import { calculateStudyTime } from "@/lib/scheduler/calculateStudyTime";
 import { distributeStudyTime } from "@/lib/scheduler/distributeStudyTime";
 import type { CourseSession } from "@/types/course";
 import { formatMinutes, sessionMinutes, weekDays } from "@/lib/courses/session-time";
+import { RevisionPreview } from "./revision-preview";
 import { SessionForm } from "./session-form";
 
-export function SessionList({ courseId, multiplier, sessions, intervals }: { courseId: string; multiplier: number; sessions: CourseSession[]; intervals: number[] }) {
+export function SessionList({ courseId, multiplier, sessions, intervals, examDates }: { courseId: string; multiplier: number; sessions: CourseSession[]; intervals: number[]; examDates: string[] }) {
   const sorted = [...sessions].sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
   const total = sorted.reduce((sum, session) => sum + (sessionMinutes(session.start_time, session.end_time) ?? 0), 0);
   return (
@@ -26,6 +27,7 @@ export function SessionList({ courseId, multiplier, sessions, intervals }: { cou
             </ul>
             <p className="mt-3 text-sm text-slate-600">Aperçu par occurrence selon tes paramètres. Les dates et créneaux seront calculés lors de la planification.</p>
           </details>
+          <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-indigo-700">Dates et examens</summary><RevisionPreview sessionId={session.id} dayOfWeek={session.day_of_week} minutes={calculateStudyTime(sessionMinutes(session.start_time, session.end_time) ?? 0, multiplier) ?? 0} intervals={intervals} examDates={examDates} /></details>
           <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-indigo-700">Modifier l’horaire</summary><div className="mt-4"><SessionForm courseId={courseId} multiplier={multiplier} session={session} /></div></details>
           <form action="/courses/sessions/delete" method="post" className="mt-3" onSubmit={(event) => { if (!window.confirm("Supprimer cet horaire de cours ?")) event.preventDefault(); }}>
             <input type="hidden" name="course_id" value={courseId} /><input type="hidden" name="id" value={session.id} />

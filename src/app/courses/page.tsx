@@ -18,12 +18,12 @@ const messages: Record<string, string> = {
 
 export default async function CoursesPage({ searchParams }: { searchParams: Promise<{ result?: string | string[] }> }) {
   const { supabase, userId } = await requireUser();
-  const { data, error } = await supabase.from("courses").select("id,code,name,color,revision_multiplier,course_sessions(id,course_id,day_of_week,start_time,end_time)").eq("user_id", userId).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("courses").select("id,code,name,color,revision_multiplier,course_sessions(id,course_id,day_of_week,start_time,end_time),exams(exam_date)").eq("user_id", userId).order("created_at", { ascending: false });
   if (error) throw new Error("Impossible de charger les cours.");
   const { data: rule, error: ruleError } = await supabase.from("revision_rules").select("intervals").eq("user_id", userId).maybeSingle();
   if (ruleError) throw new Error("Impossible de charger les intervalles de révision.");
   const intervals = (rule?.intervals ?? DEFAULT_REVISION_INTERVALS) as number[];
-  const courses = (data ?? []) as (Course & { course_sessions: CourseSession[] })[];
+  const courses = (data ?? []) as (Course & { course_sessions: CourseSession[]; exams: { exam_date: string }[] })[];
   const { result } = await searchParams;
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
   return (
@@ -51,7 +51,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
                 <summary className="cursor-pointer text-sm font-semibold text-indigo-700">Modifier le cours</summary>
                 <div className="mt-4"><CourseForm course={course} /></div>
               </details>
-              <SessionList courseId={course.id} multiplier={course.revision_multiplier} sessions={course.course_sessions} intervals={intervals} />
+              <SessionList courseId={course.id} multiplier={course.revision_multiplier} sessions={course.course_sessions} intervals={intervals} examDates={course.exams.map((exam) => exam.exam_date)} />
               <DeleteCourseForm id={course.id} code={course.code} />
             </article>
           ))}
