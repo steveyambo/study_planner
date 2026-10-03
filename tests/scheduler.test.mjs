@@ -14,6 +14,7 @@ function load(file) {
 }
 const { findAvailableSlots } = load("src/lib/scheduler/findAvailableSlots.ts");
 const { generateSchedule } = load("src/lib/scheduler/generateSchedule.ts");
+const { calculatePriority } = load("src/lib/scheduler/calculatePriority.ts");
 function fixture() {
   return { courses: [{ id: "a", code: "INF", name: "Info", color: "#000000", revision_multiplier: 2, course_sessions: [{ id: "s", course_id: "a", day_of_week: 1, start_time: "18:00", end_time: "21:00" }], exams: [] }], availability: Array.from({ length: 7 }, (_, i) => ({ id: String(i), day_of_week: i + 1, start_time: "17:00", end_time: "22:00" })), existing: [], intervals: [1,3,7,14], courseStart: "2026-09-14", courseEnd: "2026-09-28", planningStart: "2026-09-15", planningEnd: "2026-10-15", includeOverdue: false };
 }
@@ -169,4 +170,27 @@ test("pauses extend across midnight for new and existing revisions", () => {
   input.courses.pop();input.existing=[{scheduled_date:"2026-09-15",start_time:"22:59",end_time:"23:59",status:"planned"}];
   result=generateSchedule(input);assert.equal(result.planned[0].startTime,"00:14");
   input.existing[0].status="cancelled";result=generateSchedule(input);assert.equal(result.planned[0].scheduledDate,"2026-09-15");
+});
+test("priority combines urgency, workload and importance", () => {
+  assert.equal(calculatePriority(360,4,1),90);
+  assert.equal(calculatePriority(240,10,1),24);
+  assert.equal(calculatePriority(120,30,1),4);
+  assert.ok(calculatePriority(360,4,3)>calculatePriority(360,4,1));
+  assert.ok(calculatePriority(360,4,1)>calculatePriority(180,4,1));
+  assert.equal(calculatePriority(360,null),0);
+  assert.equal(calculatePriority(360,0),0);
+  assert.equal(calculatePriority(360,-1),0);
+  assert.equal(calculatePriority(0,4),0);
+  for (const args of [[-1,4,1],[1.5,4,1],[360,1.5,1],[360,4,0],[360,4,4],[Infinity,4,1]]) assert.equal(calculatePriority(...args),null);
+});
+test("higher exam importance wins when courses compete for one slot", () => {
+  const input=fixture(); input.courseEnd=input.courseStart;input.planningEnd="2026-09-15";input.intervals=[1];
+  input.courses[0].revision_multiplier=0.5;
+  input.courses[0].exams=[{id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-20",start_time:"10:00",end_time:"12:00",importance:1,notes:""}];
+  input.courses.push({...input.courses[0],id:"b",course_sessions:[{...input.courses[0].course_sessions[0],id:"t",course_id:"b"}],exams:[{...input.courses[0].exams[0],id:"f",course_id:"b",importance:3}]});
+  input.availability=[{id:"tue",day_of_week:2,start_time:"10:00",end_time:"11:30"}];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,1);assert.equal(result.planned[0].courseId,"b");
+  assert.equal(result.unscheduled[0].courseId,"a");
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0)+result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),180);
 });

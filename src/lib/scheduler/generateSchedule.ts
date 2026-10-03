@@ -3,6 +3,7 @@ import type { Exam } from "@/types/exam";
 import type { Availability } from "@/types/availability";
 import { sessionMinutes, timeToMinutes } from "@/lib/courses/session-time";
 import { calculateStudyTime } from "./calculateStudyTime";
+import { calculatePriority } from "./calculatePriority";
 import { generateRevisionDates } from "./generateRevisionDates";
 import { findAvailableSlots, type MinuteSlot } from "./findAvailableSlots";
 
@@ -70,7 +71,24 @@ export function generateSchedule(input: ScheduleInput) {
       }
     }
   }
-  tasks.sort((a,b) => a.latest - b.latest || a.target - b.target || a.courseId.localeCompare(b.courseId) || a.sourceId.localeCompare(b.sourceId) || a.courseDate.localeCompare(b.courseDate) || a.stage - b.stage);
+  const priorityKey = (task: Task) => JSON.stringify([task.courseId, task.examDate]);
+  const loads = new Map<string, number>();
+  for (const task of tasks) if (task.target <= pe && task.latest >= task.earliest) {
+    const key = priorityKey(task);
+    loads.set(key, (loads.get(key) ?? 0) + task.durationMinutes);
+  }
+  const priorities = new Map<string, number>();
+  for (const task of tasks) {
+    const key = priorityKey(task);
+    if (priorities.has(key)) continue;
+    const exams = input.courses.find((course) => course.id === task.courseId)!.exams.filter((exam) => exam.exam_date === task.examDate);
+    const importance = exams.length ? Math.max(...exams.map((exam) => exam.importance)) : 1;
+    const priority = calculatePriority(loads.get(key) ?? 0, task.examDate ? day(task.examDate) - ps : null, importance);
+    if (priority === null) throw new Error("Charge ou importance d’examen invalide.");
+    priorities.set(key, priority);
+  }
+  // Un score commun par cours/examen conserve l'ordre des répétitions d'une occurrence.
+  tasks.sort((a,b) => priorities.get(priorityKey(b))! - priorities.get(priorityKey(a))! || a.latest - b.latest || a.target - b.target || a.courseId.localeCompare(b.courseId) || a.sourceId.localeCompare(b.sourceId) || a.courseDate.localeCompare(b.courseDate) || a.stage - b.stage);
   const planned: PlannedRevision[] = [];
   const occurrenceKey = (task: Task) => JSON.stringify([task.courseId, task.sourceId, task.courseDate]);
   const series = new Map<string, Task[]>();
