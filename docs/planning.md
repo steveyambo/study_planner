@@ -1,6 +1,6 @@
 # Étape 16 — Moteur de planification
 
-Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles et révisions du compte connecté. Elle calcule une simulation sans écrire en base.
+Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles et révisions du compte connecté. Le calcul reste une simulation ; l’enregistrement explicite du premier planning est décrit dans `save-schedule.md` et nécessite la migration correspondante.
 
 ## Utilisation
 
@@ -30,7 +30,7 @@ Chaque répétition reste entière : pas de découpage automatique. Les messages
 
 ## Limites de cette étape
 
-Le schéma actuel ne mémorise pas encore la date d’occurrence d’origine d’une révision. Les séances existantes bloquent du temps mais ne sont pas déduites de la charge recalculée ; l’interface affiche cet avertissement lorsqu’elles existent. Il faudra ajouter une identité d’occurrence et un enregistrement atomique avant de sauvegarder un planning, pour conserver le suivi et éviter les doublons. Aucune simulation n’est présentée comme une séance enregistrée ou effectuée.
+La migration de sauvegarde ajoute la date d’occurrence d’origine et l’unicité des répétitions. Les séances existantes bloquent du temps mais ne sont pas encore déduites de la charge recalculée ; l’interface affiche cet avertissement lorsqu’elles existent et empêche une seconde sauvegarde. La replanification avec conservation du suivi reste à ajouter. Aucune simulation n’est présentée comme une séance enregistrée ou effectuée avant l’enregistrement explicite.
 
 ## Vérification
 
