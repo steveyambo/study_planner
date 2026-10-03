@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const today = todayInTimezone(profile.data?.timezone ?? "America/New_York");
     const revision = profile.data?.planning_revision;
     const expectedRevision = String(fields.get("expectedRevision") ?? "");
-    if (revision === undefined || revision === null || profile.data?.planning_history_version !== 1 || occurrences === null) result = "migration";
+    if (revision === undefined || revision === null || profile.data?.planning_history_version !== 1 || profile.data?.course_period_version !== 1 || occurrences === null) result = "migration";
     else if (!/^\d+$/.test(expectedRevision) || expectedRevision !== String(revision)) result = "changed";
     else if (planningStart <= today) result = "invalid";
     else {

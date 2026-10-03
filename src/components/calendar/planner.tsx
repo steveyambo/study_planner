@@ -37,7 +37,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
   const name = (id: string) => data.courses.find((course) => course.id === id)?.code ?? "Cours";
   return <>
     <form onSubmit={preview} onChange={() => { setResult(null); setError(""); setSaveFields(null); }} className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6">
-      <p className="text-sm leading-6 text-slate-600">Les horaires hebdomadaires seront répétés sur toute la période des cours. Exemple : début des cours le 14 septembre, puis planning à partir de demain. Cette première version utilise la même période pour tous les cours.</p>
+      <p className="text-sm leading-6 text-slate-600">La période ci-dessous délimite les séances de cours à inclure. Les dates propres à chaque matière, renseignées dans Mes cours, la réduisent pour cette matière. Les révisions des dernières séances peuvent continuer après la fin des cours, avant l’examen et jusqu’à la fin du planning.</p>
       <div className="grid gap-4 sm:grid-cols-2">{[
         ["courseStart", "Début des cours"], ["courseEnd", "Fin des cours à inclure"],
         ["planningStart", "Début du planning (à partir de demain)"], ["planningEnd", "Fin du planning"],

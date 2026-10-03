@@ -9,6 +9,8 @@
 4. Exécuter ensuite `supabase/migrations/202610030002_replanning.sql`. La replanification est décrite dans `replanning.md`.
 5. Pour la version actuelle, exécuter `supabase/migrations/202610030003_clean_schedule_history.sql`. Elle retire les propositions remplacées sans perdre leur origine ni le travail effectué ; voir `clean-schedule-history.md`. Sans cette quatrième migration, la sauvegarde est désactivée.
 
+6. Exécuter ensuite `202610030004_complete_study_session.sql`, puis `202610030005_course_periods.sql`. La sauvegarde actuelle exige les périodes par matière ; voir `course-periods.md`.
+
 La migration a été compilée et testée dans PostgreSQL local. Elle n’a pas été exécutée sur le projet Supabase distant par l’agent.
 
 ## Utilisation

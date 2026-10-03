@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       ? supabase.from("courses").update(course).eq("id", id).eq("user_id", userId).is("archived_at", null)
       : supabase.from("courses").insert({ ...course, user_id: userId });
     const { data, error } = await query.select("id").maybeSingle();
-    if (error) return finish(error.code === "23505" ? "duplicate" : "failed");
+    if (error) return finish(error.code === "23505" ? "duplicate" : ["42703", "PGRST204"].includes(error.code) ? "period_migration" : "failed");
     if (!data) return finish("missing");
     return finish(id ? "updated" : "created");
   } catch {

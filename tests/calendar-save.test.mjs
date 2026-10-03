@@ -12,9 +12,9 @@ function loadModule(path, dependencies = {}) {
   vm.runInNewContext(code,{exports,require:(name)=>dependencies[name],URL});
   return exports;
 }
-function setup({ existing = [], occurrences = [], historyVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
+function setup({ existing = [], occurrences = [], historyVersion = 1, periodVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
   const writes = [], filters = [], inputs = [], ranges = [], orders = [];
-  const data = { profiles: { timezone: "America/New_York", planning_revision: revision, planning_history_version: historyVersion }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing, course_occurrences: occurrences };
+  const data = { profiles: { timezone: "America/New_York", planning_revision: revision, planning_history_version: historyVersion, course_period_version: periodVersion }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing, course_occurrences: occurrences };
   const supabase = {
     from(table) {
       let from = 0, to = Infinity;
@@ -161,4 +161,11 @@ test("all durable origins are paginated before generating the schedule",async()=
 test("an origin read failure prevents saving incomplete remaining work",async()=>{
   const context=setup({occurrenceError:{code:"XX000",message:"read_failed"}});const response=await context.POST(request());
   assert.match(response.headers.get("location"),/result=failed/);assert.equal(context.writes.length,0);assert.equal(context.inputs.length,0);
+});
+
+test("missing per-course period migration refuses saving before computing or writing", async () => {
+  const context = setup({ periodVersion: null });
+  const response = await context.POST(request());
+  assert.match(response.headers.get("location"), /result=migration/);
+  assert.equal(context.writes.length, 0); assert.equal(context.inputs.length, 0);
 });

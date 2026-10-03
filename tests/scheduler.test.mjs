@@ -198,6 +198,50 @@ function savedStudy(overrides = {}) {
   return {id:"old",course_id:"a",source_course_session_id:"s",source_course_session_key:"s",source_course_date:"2026-09-14",revision_stage:1,revision_interval_days:1,duration_minutes:90,
     source_start_time:"18:00",source_end_time:"21:00",scheduled_date:"2026-09-15",start_time:"17:00",end_time:"18:30",status:"planned",...overrides};
 }
+
+test("each subject stops at its own end date while revisions continue afterwards", () => {
+  const input = fixture();
+  input.courses[0].ends_on = "2026-09-14";
+  input.courses.push({ ...input.courses[0], id: "b", code: "OTHER", ends_on: "2026-09-28", course_sessions: [{ ...input.courses[0].course_sessions[0], id: "sb", course_id: "b", day_of_week: 2 }] });
+  const result = generateSchedule(input);
+  assert.equal(result.occurrences, 3);
+  assert.ok(result.planned.filter(r => r.courseId === "a").every(r => r.courseDate === "2026-09-14"));
+  assert.ok(result.planned.some(r => r.courseId === "a" && r.scheduledDate > "2026-09-14"));
+  assert.ok(result.planned.some(r => r.courseId === "b" && r.courseDate === "2026-09-22"));
+});
+test("personal start/end bounds are inclusive and intersect the overall selection", () => {
+  const input = fixture();
+  input.courses[0].starts_on = input.courses[0].ends_on = "2026-09-21";
+  const result = generateSchedule(input);
+  assert.equal(result.occurrences, 1); assert.ok(result.planned.every(r => r.courseDate === "2026-09-21"));
+  input.courses[0].starts_on = "2026-08-01"; input.courses[0].ends_on = "2026-10-31";
+  assert.equal(generateSchedule(input).occurrences, 3);
+  input.courses[0].starts_on = "2026-10-01";
+  assert.equal(generateSchedule(input).occurrences, 0);
+});
+test("a finished subject no longer blocks its old weekly class slot", () => {
+  const input = fixture(); input.courses[0].ends_on = "2026-09-14";
+  input.planningStart = "2026-09-21"; input.planningEnd = "2026-09-22"; input.includeOverdue = true; input.intervals = [1];
+  input.courses[0].revision_multiplier = 1;
+  input.availability = [{ id: "one", day_of_week: 1, start_time: "18:00", end_time: "21:00" }];
+  const result = generateSchedule(input);
+  assert.equal(result.planned.length, 1); assert.equal(result.planned[0].scheduledDate, "2026-09-21");
+  assert.equal(result.planned[0].startTime, "18:00");
+});
+test("saved origins and pending proposals outside a narrowed period do not revive fictitious classes", () => {
+  const input = fixture(); input.courses[0].ends_on = "2026-09-14";
+  input.existing = [savedStudy({ source_course_date: "2026-09-21", scheduled_date: "2026-09-22" })];
+  input.occurrences = [{ ...trackedOccurrence(), source_course_date: "2026-09-21" }];
+  const result = generateSchedule(input);
+  assert.equal(result.occurrences, 1); assert.ok(result.planned.every(r => r.courseDate === "2026-09-14"));
+});
+test("course period does not replace exam cutoff; invalid personal dates are refused", () => {
+  const input = fixture(); input.courses[0].ends_on = "2026-09-14";
+  input.courses[0].exams = [{ exam_date: "2026-09-20", start_time: "10:00", end_time: "12:00", importance: 2 }];
+  assert.ok(generateSchedule(input).planned.every(r => r.scheduledDate < "2026-09-20"));
+  input.courses[0].starts_on = "2026-09-15"; assert.throws(() => generateSchedule(input), /fin/);
+  input.courses[0].starts_on = "2026-02-30"; assert.throws(() => generateSchedule(input), /Date invalide/);
+});
 test("replanning releases replaceable slots and keeps the same workload",()=>{
   const input=fixture();input.courseEnd=input.courseStart;input.today="2026-09-14";input.existing=[savedStudy()];
   const result=generateSchedule(input);

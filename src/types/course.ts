@@ -5,6 +5,8 @@ export type Course = {
   color: string;
   revision_multiplier: number;
   archived_at?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
 };
 
 export type CourseSession = {

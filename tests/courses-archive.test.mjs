@@ -99,3 +99,31 @@ test("course editing scopes the write to an active course owned by the signed-in
   assert.ok(filters.some((f) => f[0] === "eq" && f[1] === "user_id" && f[2] === userId));
   assert.ok(filters.some((f) => f[0] === "is" && f[1] === "archived_at" && f[2] === null));
 });
+
+test("course period validation rejects impossible or reversed dates before mutation", async () => {
+  let writes = 0;
+  const { POST } = load("src/app/courses/save/route.ts", { from: () => { writes++; throw new Error("must not write"); } });
+  const base = { code: "INF", name: "Info", color: "#123456", revision_multiplier: "2" };
+  for (const dates of [
+    { starts_on: "2026-02-30" }, { ends_on: "2026-2-3" },
+    { starts_on: "2026-10-01", ends_on: "2026-09-01" },
+  ]) assert.equal(result(await POST(request("/courses/save", { ...base, ...dates }))), "invalid");
+  assert.equal(writes, 0);
+});
+
+test("course period edits persist optional inclusive bounds scoped to the signed-in owner", async () => {
+  const updates = [];
+  const query = { eq() { return this; }, is() { return this; }, select() { return this; }, maybeSingle: async () => ({ data: { id: courseId }, error: null }) };
+  const { POST } = load("src/app/courses/save/route.ts", { from: () => ({ update(values) { updates.push(values); return query; } }) });
+  const base = { id: courseId, code: "ENG", name: "Anglais", color: "#123456", revision_multiplier: "2" };
+  assert.equal(result(await POST(request("/courses/save", { ...base, starts_on: "2026-10-30", ends_on: "2026-10-30" }))), "updated");
+  assert.equal(updates[0].starts_on, "2026-10-30"); assert.equal(updates[0].ends_on, "2026-10-30");
+  assert.equal(result(await POST(request("/courses/save", base))), "updated");
+  assert.equal(updates[1].starts_on, null); assert.equal(updates[1].ends_on, null);
+});
+
+test("missing course date columns give an actionable migration message", async () => {
+  const query = { select() { return this; }, maybeSingle: async () => ({ error: { code: "PGRST204" }, data: null }) };
+  const { POST } = load("src/app/courses/save/route.ts", { from: () => ({ insert: () => query }) });
+  assert.equal(result(await POST(request("/courses/save", { code: "ENG", name: "Anglais", color: "#123456", revision_multiplier: "2" }))), "period_migration");
+});

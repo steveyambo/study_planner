@@ -1,10 +1,10 @@
 # Étape 16 — Moteur de planification
 
-Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles, origines et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md`, la mise à jour dans `replanning.md` et le nettoyage des propositions dans `clean-schedule-history.md` ; les quatre migrations sont nécessaires.
+Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles, origines et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md`, la mise à jour dans `replanning.md` et le nettoyage des propositions dans `clean-schedule-history.md` ; appliquer les migrations dans l’ordre jusqu’à `202610030005_course_periods.sql` est nécessaire. Le suivi et les périodes par matière sont décrits dans `session-tracking.md` et `course-periods.md`.
 
 ## Utilisation
 
-1. Choisir le début des cours, par exemple le 14 septembre, puis la dernière date de cours à inclure. Tous les horaires hebdomadaires sont répétés entre ces dates, bornes incluses. Cette version applique une période commune à tous les cours et ne connaît pas encore les vacances ni les séances annulées.
+1. Choisir le début des cours, par exemple le 14 septembre, puis la dernière date de cours à inclure. Tous les horaires hebdomadaires sont répétés entre ces dates, bornes incluses. Les dates propres à chaque matière, renseignées dans Mes cours, réduisent cette période pour la matière concernée. Sans limite personnelle, la limite globale s’applique. Les vacances et séances de cours annulées ne sont pas encore connues.
 2. Choisir la période du planning à partir de demain. Cette limite évite de proposer des heures déjà passées aujourd’hui. Les dates sont celles du fuseau du profil.
 3. Pour rattraper les cours passés, cocher **Inclure les révisions déjà échues** uniquement si ces révisions restent à faire. Sinon leurs minutes sont exclues et affichées séparément, sans être considérées comme terminées.
 4. Choisir la **Pause entre deux révisions**, de 0 à 60 minutes (15 minutes par défaut). Cette pause réserve du temps entre deux révisions, sans être ajoutée aux minutes de travail.

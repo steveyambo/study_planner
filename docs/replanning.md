@@ -46,3 +46,5 @@ La fonction SQL `replace_schedule` vérifie à nouveau la version sous verrou du
 `node --test tests/calendar-save.test.mjs` vérifie les lectures limitées au compte connecté, les lignes recalculées, une seconde sauvegarde avec séances existantes, un aperçu vide, les versions périmées avant et pendant la sauvegarde, une origine étrangère, une migration manquante, une date de début passée, plus de 1 000 lignes historiques, un plafond de page réduit et le refus de sauvegarde si une page échoue. Le client Supabase et le calcul sont simulés dans ces tests de route ; les contrôles SQL et les déductions de charge ont leurs tests séparés.
 
 Le parcours connecté sur le projet Supabase distant doit être vérifié après l’application de la migration : enregistrer, ajouter une disponibilité, recalculer, remplacer et recharger. Le calendrier graphique et le bouton de suivi des séances restent des étapes distinctes.
+
+Les périodes propres à chaque matière nécessitent également la migration 005, après la 004 de suivi des séances. Voir `course-periods.md` pour définir des fins de cours différentes, puis recalculer et enregistrer le planning.

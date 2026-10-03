@@ -36,6 +36,12 @@ export function generateSchedule(input: ScheduleInput) {
   if (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 60) throw new Error("La pause doit être un entier entre 0 et 60 minutes.");
   const withBreak = (study: MinuteSlot): MinuteSlot => ({ start: study.start - breakMinutes, end: study.end + breakMinutes });
   const activeCourses = input.courses.filter((course) => !course.archived_at);
+  const periods = new Map(activeCourses.map((course) => {
+    const start = course.starts_on ? day(course.starts_on) : cs;
+    const end = course.ends_on ? day(course.ends_on) : ce;
+    if (course.starts_on && course.ends_on && end < start) throw new Error("La fin d’une matière doit suivre son début.");
+    return [course.id, { start: Math.max(cs, start), end: Math.min(ce, end) }];
+  }));
   const sourceKey = (study: ExistingStudy) => study.source_course_session_key ?? study.source_course_session_id;
   const knownIdentity = (study: ExistingStudy) => !!(sourceKey(study) && study.source_course_date && study.course_id && study.revision_stage);
   const archivedIds = new Set(input.courses.filter((course) => course.archived_at).map((course) => course.id));
@@ -55,7 +61,7 @@ export function generateSchedule(input: ScheduleInput) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
     const availability = input.availability.filter((a) => a.day_of_week === weekday).map((a) => slot(a.start_time, a.end_time));
     const busy = activeCourses.flatMap((c) => [
-      ...(d >= cs && d <= ce ? c.course_sessions.filter((s) => s.day_of_week === weekday && (!s.effective_from || date(d) >= s.effective_from)).map((s) => slot(s.start_time, s.end_time)) : []),
+      ...(d >= periods.get(c.id)!.start && d <= periods.get(c.id)!.end ? c.course_sessions.filter((s) => s.day_of_week === weekday && (!s.effective_from || date(d) >= s.effective_from)).map((s) => slot(s.start_time, s.end_time)) : []),
       ...c.exams.filter((e) => e.exam_date === date(d)).map((e) => slot(e.start_time, e.end_time)),
     ]);
     for (const study of existingStudies) {
@@ -79,6 +85,8 @@ export function generateSchedule(input: ScheduleInput) {
   for (let d = cs; d <= Math.min(ce, pe); d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
     for (const course of activeCourses) for (const source of course.course_sessions) {
+      const period = periods.get(course.id)!;
+      if (d < period.start || d > period.end) continue;
       const key = JSON.stringify([course.id, source.id, date(d)]);
       const history = historical.get(key) ?? [];
       const occurrence = trackedOccurrences.get(key);
