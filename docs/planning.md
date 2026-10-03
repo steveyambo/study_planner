@@ -24,7 +24,7 @@ Avant de réserver une date, le moteur estime combien de répétitions suivantes
 
 Une série complète n’est plus obligatoire : si seulement les répétitions 1 et 2 trouvent des créneaux, elles sont conservées et seules les répétitions restantes sont signalées. Les jours ne sont pas réservés à des répétitions futures au prix de bloquer celles qui peuvent déjà être placées. Si la répétition courante ne trouve aucun créneau, les suivantes restent bloquées pour respecter l’ordre ; le moteur ne saute pas une répétition.
 
-Une date souhaitée au-delà de la fin du planning est signalée explicitement : le moteur ne l’avance pas uniquement pour la faire entrer dans cet aperçu. Les tâches sont traitées selon une règle déterministe ; celle-ci ne garantit pas un optimum global entre tous les cours. La priorité selon importance, charge et proximité de l’examen sera définie à l’étape correspondante.
+Une date souhaitée au-delà de la fin du planning est signalée explicitement : le moteur ne l’avance pas uniquement pour la faire entrer dans cet aperçu. Les tâches sont traitées selon une règle déterministe ; celle-ci ne garantit pas un optimum global entre tous les cours. La priorité combine importance, charge à placer et proximité de l’examen ; la formule et ses limites sont décrites dans `exam-priority.md`.
 
 Chaque répétition reste entière : pas de découpage automatique. Les messages distinguent une date souhaitée au-delà de la fin du planning, l’absence de jours avant l’examen, le manque de créneaux assez longs et une répétition bloquée par la précédente. Le manque de place peut aussi venir de la pause ou de l’espacement requis ; il ne signifie pas systématiquement que l’examen est en cause. Le plafond quotidien configurable sera ajouté à une étape suivante.
 

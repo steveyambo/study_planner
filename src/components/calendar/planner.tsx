@@ -38,6 +38,7 @@ export function Planner({ data, today }: { data: Pick<ScheduleInput, "courses" |
     {error && <p role="alert" className="mt-5 text-red-700">{error}</p>}
     {result && <section aria-live="polite" className="mt-8 space-y-5">
       <h2 className="text-xl font-semibold">Planning proposé</h2>
+      <p className="text-sm text-slate-600">Les créneaux sont attribués en priorité selon la charge à placer, la proximité et l’importance de l’examen de chaque cours.</p>
       <p>{result.occurrences} séances de cours · {formatMinutes(result.planned.reduce((n, revision) => n + revision.durationMinutes, 0))} placées · {formatMinutes(result.unscheduled.reduce((n, revision) => n + revision.durationMinutes, 0))} non placées.</p>
       {result.excludedMinutes > 0 && <p className="text-sm text-slate-600">{formatMinutes(result.excludedMinutes)} déjà échues exclues. Cela ne signifie pas qu’elles ont été effectuées.</p>}
       <p className="text-sm leading-6 text-slate-600">Simulation sans enregistrement. Les répétitions d’une même séance de cours se suivent sur des jours distincts. Le moteur conserve les écarts configurés lorsque c’est possible ; ils peuvent être réduits avant l’examen, avec au moins un jour entre deux répétitions. Même si toute la série ne tient pas, les premières révisions possibles sont conservées. Chaque répétition reste entière et les pauses sont réservées entre les révisions.</p>
