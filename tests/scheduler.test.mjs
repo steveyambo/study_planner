@@ -96,13 +96,17 @@ test("deadline compression still leaves one calendar day between repetitions", (
   assert.equal(new Set(result.planned.map((r)=>r.scheduledDate)).size,4);
   assert.ok(result.planned.every((r)=>r.scheduledDate<"2026-09-19"));
 });
-test("not enough days reports spacing and does not place later repetitions first", () => {
+test("not enough days places the possible prefix before reporting spacing", () => {
   const input=fixture(); input.courseEnd=input.courseStart;
   input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-17",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
   const result=generateSchedule(input);
-  assert.equal(result.planned.length,0); assert.equal(result.unscheduled[0].reasonCode,"spacing");
-  assert.equal(result.unscheduled[1].reasonCode,"previous_unplaced");
-  assert.equal(result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),360);
+  assert.deepEqual(Array.from(result.planned,(r)=>r.stage),[1,2]);
+  assert.deepEqual(Array.from(result.planned,(r)=>r.scheduledDate),["2026-09-15","2026-09-16"]);
+  assert.equal(result.unscheduled[0].stage,3); assert.equal(result.unscheduled[0].reasonCode,"spacing");
+  assert.equal(result.unscheduled[1].stage,4); assert.equal(result.unscheduled[1].reasonCode,"previous_unplaced");
+  assert.ok(result.planned.every((r)=>r.scheduledDate>r.courseDate && r.scheduledDate<"2026-09-17"));
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),180);
+  assert.equal(result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),180);
 });
 test("dates beyond the planning horizon are reported instead of pulled earlier", () => {
   const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-22";
@@ -124,6 +128,37 @@ test("sparse availability is considered before placing the first repetition", ()
   assert.equal(result.planned.length,2);assert.equal(result.unscheduled.length,0);
   assert.equal(result.planned[0].scheduledDate,"2026-09-15");assert.equal(result.planned[1].scheduledDate,"2026-09-17");
 });
+test("one available day still places the first repetition of an incomplete series", () => {
+  const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-20";
+  input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-21",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
+  input.availability=[{id:"tue",day_of_week:2,start_time:"10:00",end_time:"11:30"}];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,1);assert.equal(result.planned[0].stage,1);
+  assert.equal(result.planned[0].scheduledDate,"2026-09-15");
+  assert.equal(result.planned[0].startTime,"10:00");assert.equal(result.planned[0].endTime,"11:30");
+  assert.deepEqual(Array.from(result.unscheduled,(r)=>r.stage),[2,3,4]);
+  assert.equal(result.unscheduled[0].reasonCode,"capacity");
+  assert.ok(result.unscheduled.slice(1).every((r)=>r.reasonCode==="previous_unplaced"));
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0)+result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),360);
+});
+
+test("candidate selection keeps the longest possible prefix when the whole series cannot fit", () => {
+  const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-20";input.intervals=[3,5,7];
+  input.courses[0].course_sessions[0].end_time="19:00";
+  input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-21",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
+  input.availability=[2,4].map((weekday)=>({id:String(weekday),day_of_week:weekday,start_time:"10:00",end_time:"10:40"}));
+  const result=generateSchedule(input);
+  assert.deepEqual(Array.from(result.planned,(r)=>r.stage),[1,2]);
+  assert.deepEqual(Array.from(result.planned,(r)=>r.scheduledDate),["2026-09-15","2026-09-17"]);
+  assert.equal(new Set(result.planned.map((r)=>r.scheduledDate)).size,2);
+  assert.ok(result.planned.every((r)=>r.scheduledDate>r.courseDate && r.scheduledDate<"2026-09-21"));
+  assert.ok(result.planned.every((r)=>r.startTime==="10:00" && r.endTime==="10:40"));
+  assert.equal(result.unscheduled.length,1);assert.equal(result.unscheduled[0].stage,3);
+  assert.equal(result.unscheduled[0].reasonCode,"capacity");
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),80);
+  assert.equal(result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),40);
+});
+
 test("pauses extend across midnight for new and existing revisions", () => {
   const input=fixture();input.courseEnd=input.courseStart;input.intervals=[1];
   input.courses[0].course_sessions[0].end_time="19:00";input.courses[0].revision_multiplier=1;

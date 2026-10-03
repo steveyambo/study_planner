@@ -10,7 +10,7 @@ export type PlannerCourse = Course & { course_sessions: CourseSession[]; exams: 
 export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string };
 export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number };
 export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
-export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "series_capacity" | "previous_unplaced";
+export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "previous_unplaced";
 export type UnscheduledRevision = { courseId: string; courseDate: string; durationMinutes: number; stage?: number; reasonCode: UnscheduledReason; reason: string };
 const DAY = 86_400_000;
 function day(value: string) {
@@ -49,7 +49,7 @@ export function generateSchedule(input: ScheduleInput) {
     }
     free.set(d, findAvailableSlots(availability, busy));
   }
-  type Task = Omit<PlannedRevision, "scheduledDate" | "startTime" | "endTime"> & { earliest: number; latest: number; target: number; intervalDays: number; examDate: string | null; remaining: number };
+  type Task = Omit<PlannedRevision, "scheduledDate" | "startTime" | "endTime"> & { earliest: number; latest: number; target: number; intervalDays: number; examDate: string | null };
   const tasks: Task[] = [];
   const unscheduled: UnscheduledRevision[] = [];
   let excludedMinutes = 0, occurrences = 0;
@@ -62,17 +62,11 @@ export function generateSchedule(input: ScheduleInput) {
       const generated = generateRevisionDates(date(d), minutes, input.intervals, course.exams.map((e) => e.exam_date));
       if (generated.reason === "invalid") throw new Error("Intervalles ou dates de révision invalides.");
       if (generated.reason === "no_window") { unscheduled.push({ courseId: course.id, courseDate: date(d), durationMinutes: minutes, reasonCode: "exam_window", reason: `Aucun jour entre le cours et l’examen du ${generated.examDate}` }); continue; }
-      const occurrenceTasks: Task[] = [];
       for (const revision of generated.revisions) {
         const target = day(revision.scheduledDate);
         if (target < ps && !input.includeOverdue) { excludedMinutes += revision.durationMinutes; continue; }
         const latest = generated.examDate ? Math.min(pe, day(generated.examDate) - 1) : pe;
-        occurrenceTasks.push({ courseId: course.id, sourceId: source.id, courseDate: date(d), stage: [...input.intervals].sort((a,b) => a-b).indexOf(revision.intervalDays) + 1, durationMinutes: revision.durationMinutes, desiredDate: revision.scheduledDate, earliest: Math.max(ps, d + 1), latest, target, intervalDays: revision.intervalDays, examDate: generated.examDate, remaining: 0 });
-      }
-      // Garder au moins un jour pour chacune des répétitions suivantes dans cet horizon.
-      for (const [index, task] of occurrenceTasks.entries()) {
-        task.remaining = occurrenceTasks.slice(index + 1).filter((later) => later.target <= pe).length;
-        tasks.push(task);
+        tasks.push({ courseId: course.id, sourceId: source.id, courseDate: date(d), stage: [...input.intervals].sort((a,b) => a-b).indexOf(revision.intervalDays) + 1, durationMinutes: revision.durationMinutes, desiredDate: revision.scheduledDate, earliest: Math.max(ps, d + 1), latest, target, intervalDays: revision.intervalDays, examDate: generated.examDate });
       }
     }
   }
@@ -86,20 +80,25 @@ export function generateSchedule(input: ScheduleInput) {
     group.push(task);
     series.set(key, group);
   }
-  // Vérifier les jours réellement libres pour les prochaines répétitions avant de réserver.
-  const leavesRoomForLater = (task: Task, scheduledDay: number) => {
+  // Favoriser la plus longue suite réalisable, sans exiger qu'elle soit complète.
+  const countLaterThatFit = (task: Task, scheduledDay: number, endMinute: number) => {
     let last = scheduledDay;
+    let end = endMinute;
+    let count = 0;
     for (const later of series.get(occurrenceKey(task))!) {
       if (later.stage <= task.stage || later.target > pe) continue;
       let found = false;
       for (let d = Math.max(last + 1, later.earliest); d <= later.latest; d++) {
-        if (free.get(d)?.some((s) => s.end - s.start >= later.durationMinutes)) {
-          last = d; found = true; break;
+        let slots = free.get(d) ?? [];
+        if (d === last + 1 && end + breakMinutes > 1440) slots = findAvailableSlots(slots, [{ start: 0, end: end + breakMinutes - 1440 }]);
+        const available = slots.find((s) => s.end - s.start >= later.durationMinutes);
+        if (available) {
+          last = d; end = available.start + later.durationMinutes; count++; found = true; break;
         }
       }
-      if (!found) return false;
+      if (!found) break;
     }
-    return true;
+    return count;
   };
   const previous = new Map<string, { day: number; intervalDays: number }>();
   const blocked = new Set<string>();
@@ -123,7 +122,7 @@ export function generateSchedule(input: ScheduleInput) {
     }
     const prior = previous.get(key);
     const earliest = Math.max(task.earliest, prior ? prior.day + 1 : task.earliest);
-    const latest = task.latest - task.remaining;
+    const latest = task.latest;
     if (earliest > latest) {
       const limit = task.examDate && day(task.examDate) - 1 <= pe ? `l’examen du ${task.examDate}` : `la fin du planning (${input.planningEnd})`;
       fail("spacing", `Pas assez de jours distincts pour espacer les répétitions avant ${limit}.`);
@@ -134,27 +133,31 @@ export function generateSchedule(input: ScheduleInput) {
     const candidates: number[] = [];
     for (let d = Math.max(earliest, target); d <= latest; d++) candidates.push(d);
     for (let d = Math.min(target - 1, latest); d >= earliest; d--) candidates.push(d);
-    let placed = false;
-    let blockedByLater = false;
+    const maxLaterCount = series.get(key)!.filter((later) => later.stage > task.stage && later.target <= pe).length;
+    let chosen: { day: number; start: number; end: number; laterCount: number } | undefined;
     for (const d of candidates) {
       const slots = free.get(d)!;
       const available = slots.find((s) => s.end - s.start >= task.durationMinutes);
       if (!available) continue;
-      if (!leavesRoomForLater(task, d)) { blockedByLater = true; continue; }
       const start = available.start;
       const end = start + task.durationMinutes;
+      const laterCount = countLaterThatFit(task, d, end);
+      // Les candidats sont déjà ordonnés selon la date souhaitée : garder le premier en cas d'égalité.
+      if (!chosen || laterCount > chosen.laterCount) chosen = { day: d, start, end, laterCount };
+      if (laterCount === maxLaterCount) break;
+    }
+    if (chosen) {
+      const { day: d, start, end } = chosen;
+      const slots = free.get(d)!;
       const occupied = withBreak({ start, end });
       free.set(d, findAvailableSlots(slots, [occupied]));
       if (occupied.start < 0 && free.has(d - 1)) free.set(d - 1, findAvailableSlots(free.get(d - 1)!, [{ start: 1440 + occupied.start, end: 1440 }]));
       if (occupied.end > 1440 && free.has(d + 1)) free.set(d + 1, findAvailableSlots(free.get(d + 1)!, [{ start: 0, end: occupied.end - 1440 }]));
       previous.set(key, { day: d, intervalDays: task.intervalDays });
       planned.push({ courseId: task.courseId, sourceId: task.sourceId, courseDate: task.courseDate, stage: task.stage, durationMinutes: task.durationMinutes, desiredDate: task.desiredDate, scheduledDate: date(d), startTime: time(start), endTime: time(end) });
-      placed = true; break;
-    }
-    if (!placed) {
+    } else {
       const limit = task.examDate && day(task.examDate) - 1 <= pe ? `avant l’examen du ${task.examDate}` : `jusqu’à la fin du planning (${input.planningEnd})`;
-      if (blockedByLater) fail("series_capacity", `Les créneaux libres ne permettent pas de placer cette répétition et les suivantes sur des jours distincts, avec les pauses de ${breakMinutes} min, ${limit}.`);
-      else fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min entre révisions, du ${date(earliest)} au ${date(latest)} (${limit}).`);
+      fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min entre révisions, du ${date(earliest)} au ${date(latest)} (${limit}).`);
     }
   }
   planned.sort((a,b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime));
