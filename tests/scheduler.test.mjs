@@ -194,3 +194,91 @@ test("higher exam importance wins when courses compete for one slot", () => {
   assert.equal(result.unscheduled[0].courseId,"a");
   assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0)+result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),180);
 });
+function savedStudy(overrides = {}) {
+  return {id:"old",course_id:"a",source_course_session_id:"s",source_course_session_key:"s",source_course_date:"2026-09-14",revision_stage:1,revision_interval_days:1,duration_minutes:90,
+    source_start_time:"18:00",source_end_time:"21:00",scheduled_date:"2026-09-15",start_time:"17:00",end_time:"18:30",status:"planned",...overrides};
+}
+test("replanning releases replaceable slots and keeps the same workload",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-09-14";input.existing=[savedStudy()];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,4);assert.equal(result.planned[0].startTime,"17:00");
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),360);
+});
+test("completed work is deducted and preserved while overdue pending work is caught up",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-09-19";input.planningStart="2026-09-20";
+  input.existing=[savedStudy({status:"completed"}),savedStudy({id:"second",revision_stage:2,revision_interval_days:3,scheduled_date:"2026-09-17"})];
+  const original=JSON.stringify(input.existing);const result=generateSchedule(input);
+  assert.deepEqual(Array.from(result.planned,r=>r.stage).sort(),[2,3,4]);
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);
+  assert.equal(result.excludedMinutes,0);assert.equal(JSON.stringify(input.existing),original);
+});
+test("completed minutes are preserved when multiplier is reduced or increased",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-01";input.planningStart="2026-10-03";
+  input.existing=[1,2,3,4].map((stage)=>savedStudy({id:String(stage),revision_stage:stage,revision_interval_days:input.intervals[stage-1],scheduled_date:["2026-09-15","2026-09-17","2026-09-21","2026-09-28"][stage-1],status:"completed"}));
+  input.courses[0].revision_multiplier=1;assert.equal(generateSchedule(input).planned.length,0);
+  input.courses[0].revision_multiplier=3;const result=generateSchedule(input);
+  assert.equal(result.planned.length,1);assert.equal(result.planned[0].stage,5);assert.equal(result.planned[0].durationMinutes,180);
+});
+test("missed repetitions before a completed later stage become future catch-up work",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.existing=[savedStudy({status:"missed"}),savedStudy({id:"second",revision_stage:2,revision_interval_days:3,scheduled_date:"2026-09-17",status:"missed"}),savedStudy({id:"third",revision_stage:3,revision_interval_days:7,scheduled_date:"2026-09-21",status:"completed"})];
+  const original=JSON.stringify(input.existing);const result=generateSchedule(input);
+  assert.equal(result.unscheduled.length,0);assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);
+  assert.deepEqual(Array.from(result.planned,r=>r.stage),[5,6,7]);assert.ok(result.planned.every(r=>r.scheduledDate>=input.planningStart));
+  assert.equal(new Set(result.planned.map(r=>r.scheduledDate)).size,3);assert.equal(JSON.stringify(input.existing),original);
+});
+test("archived course and its future planned revisions no longer occupy capacity",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-09-14";
+  input.courses[0].archived_at="2026-09-14T00:00:00Z";
+  input.existing=[savedStudy()];
+  input.courses.push({...input.courses[0],id:"b",archived_at:null,course_sessions:[{...input.courses[0].course_sessions[0],id:"t",course_id:"b"}]});
+  const result=generateSchedule(input);
+  assert.equal(result.occurrences,1);assert.ok(result.planned.every(r=>r.courseId==="b"));assert.equal(result.planned[0].startTime,"17:00");
+});
+test("changed weekly template preserves known past occurrence and its original duration",()=>{
+  const input=fixture();input.courseEnd="2026-09-28";input.today="2026-09-19";input.planningStart="2026-09-20";
+  input.courses[0].course_sessions[0]={...input.courses[0].course_sessions[0],day_of_week:4,start_time:"10:00",end_time:"11:00",effective_from:"2026-09-20"};
+  input.existing=[savedStudy({status:"completed"})];
+  const result=generateSchedule(input);
+  assert.equal(result.occurrences,2); // known14September and new24September, no invented17September
+  assert.equal(result.planned.filter(r=>r.courseDate==="2026-09-14").reduce((n,r)=>n+r.durationMinutes,0),270);
+  assert.equal(result.planned.filter(r=>r.courseDate==="2026-09-24").reduce((n,r)=>n+r.durationMinutes,0),120);
+});
+test("adding a course includes only occurrences from its effective start",()=>{
+  const input=fixture();input.courseEnd="2026-09-28";input.courses[0].course_sessions[0].effective_from="2026-09-20";
+  const result=generateSchedule(input);assert.equal(result.occurrences,2);
+  assert.ok(result.planned.every(r=>r.courseDate>="2026-09-20"));
+});
+test("moving a weekly schedule removes its previously planned future occurrences",()=>{
+  const input=fixture();input.courseEnd="2026-09-28";input.today="2026-09-19";input.planningStart="2026-09-20";
+  input.courses[0].course_sessions[0]={...input.courses[0].course_sessions[0],day_of_week:4,start_time:"10:00",end_time:"11:00",effective_from:"2026-09-19"};
+  input.existing=[savedStudy({source_course_date:"2026-09-21",scheduled_date:"2026-09-22"})];
+  const result=generateSchedule(input);assert.equal(result.occurrences,1);
+  assert.ok(result.planned.every(r=>r.courseDate==="2026-09-24"));assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),120);
+});
+test("a new duration applies to future occurrences even if their revisions were already saved",()=>{
+  const input=fixture();input.courseEnd="2026-09-21";input.today="2026-09-19";input.planningStart="2026-09-20";
+  input.courses[0].course_sessions[0]={...input.courses[0].course_sessions[0],end_time:"19:00",effective_from:"2026-09-19"};
+  input.existing=[savedStudy({source_course_date:"2026-09-21",scheduled_date:"2026-09-22"})];
+  const result=generateSchedule(input);assert.equal(result.occurrences,1);
+  assert.ok(result.planned.every(r=>r.courseDate==="2026-09-21"));assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),120);
+});
+test("another schedule change never revives a cancelled occurrence that was moved before it happened",()=>{
+  const input=fixture();input.courseEnd="2026-09-28";input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.courses[0].course_sessions[0]={...input.courses[0].course_sessions[0],day_of_week:4,start_time:"10:00",end_time:"11:00",effective_from:"2026-10-03"};
+  input.existing=[savedStudy({source_course_date:"2026-09-21",scheduled_date:"2026-09-22",status:"cancelled",cancellation_reason:"source_changed"}),savedStudy({id:"new",source_course_date:"2026-09-22",scheduled_date:"2026-09-23",source_start_time:"10:00",source_end_time:"11:00",status:"missed"})];
+  const result=generateSchedule(input);assert.equal(result.occurrences,1);
+  assert.ok(result.planned.every(r=>r.courseDate==="2026-09-22"));assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),120);
+});
+test("changed intervals redistribute remaining minutes without repeating completed stages",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-09-14";input.intervals=[1,5,10];input.existing=[savedStudy({status:"completed"})];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);
+  assert.deepEqual(Array.from(result.planned,r=>r.stage).sort(),[2,3]);
+  assert.deepEqual(Array.from(result.planned,r=>r.intervalDays).sort((a,b)=>a-b),[5,10]);
+});
+test("fixed future session outside window keeps its identity and deducted minutes",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-22";input.today="2026-09-14";
+  input.existing=[savedStudy({revision_stage:4,revision_interval_days:14,scheduled_date:"2026-09-28"})];
+  const result=generateSchedule(input);assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);assert.ok(result.planned.every(r=>r.stage<4));
+});

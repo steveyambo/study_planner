@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const id = String(fields.get("id") ?? "");
     if (!course || (id && !isCourseId(id))) return finish("invalid");
     const query = id
-      ? supabase.from("courses").update(course).eq("id", id).eq("user_id", userId)
+      ? supabase.from("courses").update(course).eq("id", id).eq("user_id", userId).is("archived_at", null)
       : supabase.from("courses").insert({ ...course, user_id: userId });
     const { data, error } = await query.select("id").maybeSingle();
     if (error) return finish(error.code === "23505" ? "duplicate" : "failed");

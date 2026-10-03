@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const end_time = String(fields.get("end_time") ?? "");
     if (!isCourseId(course_id) || (id && !isCourseId(id)) || !Number.isInteger(day_of_week) || day_of_week < 1 || day_of_week > 7 || sessionMinutes(start_time, end_time) === null) return finish("session_invalid");
 
-    const { data: course, error: courseError } = await supabase.from("courses").select("id").eq("id", course_id).eq("user_id", userId).maybeSingle();
+    const { data: course, error: courseError } = await supabase.from("courses").select("id").eq("id", course_id).eq("user_id", userId).is("archived_at", null).maybeSingle();
     if (courseError) return finish("failed");
     if (!course) return finish("missing");
 

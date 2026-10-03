@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const courseId = String(fields.get("course_id") ?? "");
     if (!isCourseId(id) || !isCourseId(courseId)) result = "session_invalid";
     else {
-      const { data: course, error: courseError } = await supabase.from("courses").select("id").eq("id", courseId).eq("user_id", userId).maybeSingle();
+      const { data: course, error: courseError } = await supabase.from("courses").select("id").eq("id", courseId).eq("user_id", userId).is("archived_at", null).maybeSingle();
       if (courseError) result = "failed";
       else if (!course) result = "missing";
       else {

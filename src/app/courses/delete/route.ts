@@ -4,15 +4,16 @@ import { isCourseId } from "@/lib/courses/validation";
 
 export async function POST(request: NextRequest) {
   if (request.headers.get("origin") !== request.nextUrl.origin) return new NextResponse("Requête non autorisée", { status: 403 });
-  const { supabase, userId } = await requireUser();
+  const { supabase } = await requireUser();
   const destination = new URL("/courses", request.url);
   let result = "failed";
   try {
     const id = String((await request.formData()).get("id") ?? "");
     if (!isCourseId(id)) result = "invalid";
     else {
-      const { data, error } = await supabase.from("courses").delete().eq("id", id).eq("user_id", userId).select("id").maybeSingle();
-      result = error ? "failed" : data ? "deleted" : "missing";
+      // The RPC obtains the owner from the authenticated session and preserves history.
+      const { data, error } = await supabase.rpc("archive_course", { p_course_id: id });
+      result = error ? error.code === "PGRST202" ? "migration" : "failed" : data ? "archived" : "missing";
     }
   } catch { result = "failed"; }
   destination.searchParams.set("result", result);

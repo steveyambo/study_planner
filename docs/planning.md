@@ -1,6 +1,6 @@
 # Étape 16 — Moteur de planification
 
-Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles et révisions du compte connecté. Le calcul reste une simulation ; l’enregistrement explicite du premier planning est décrit dans `save-schedule.md` et nécessite la migration correspondante.
+Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md` et la mise à jour d’un planning existant dans `replanning.md` ; les trois migrations sont nécessaires.
 
 ## Utilisation
 
@@ -16,7 +16,7 @@ Maximum : 366 jours de cours et 91 jours de planning. La fin des cours peut dép
 
 `findAvailableSlots` fusionne les disponibilités chevauchantes, puis retire les occupations. `generateSchedule` énumère les occurrences hebdomadaires et utilise les fonctions de calcul, répartition et dates des étapes précédentes.
 
-Les cours dans la période déclarée, tous les examens et les révisions existantes non annulées bloquent leurs heures. Les nouvelles révisions réservent leur créneau au fur et à mesure. La pause choisie est également respectée autour des révisions existantes et des nouvelles révisions. Elle ne modifie ni leur durée de travail ni les totaux de minutes. Les révisions commencent après le jour de leur occurrence et restent strictement avant le prochain examen du cours.
+Les cours actifs dans la période déclarée, leurs examens et les révisions conservées bloquent leurs heures. Les anciennes révisions encore planifiées dans la fenêtre future à remplacer libèrent leurs créneaux pendant la simulation. Les nouvelles révisions réservent leur créneau au fur et à mesure. La pause choisie est également respectée autour des révisions conservées et des nouvelles révisions. Elle ne modifie ni leur durée de travail ni les totaux de minutes. Les révisions commencent après le jour de leur occurrence et restent strictement avant le prochain examen du cours.
 
 Pour chaque occurrence de cours, les répétitions sont placées dans l’ordre et sur des dates distinctes. Le moteur recherche d’abord un créneau qui conserve l’écart configuré depuis la répétition précédente réellement placée. Si la fenêtre avant l’examen ou la fin du planning ne le permet pas, cet écart peut être réduit, avec au moins un jour entre deux répétitions. Si une répétition ne peut pas être placée, les suivantes de cette occurrence sont signalées comme bloquées : elles ne passent pas avant une répétition manquante. Les occurrences de cours différentes gardent chacune leur série de répétitions et peuvent avoir des révisions le même jour.
 
@@ -30,10 +30,10 @@ Chaque répétition reste entière : pas de découpage automatique. Les messages
 
 ## Limites de cette étape
 
-La migration de sauvegarde ajoute la date d’occurrence d’origine et l’unicité des répétitions. Les séances existantes bloquent du temps mais ne sont pas encore déduites de la charge recalculée ; l’interface affiche cet avertissement lorsqu’elles existent et empêche une seconde sauvegarde. La replanification avec conservation du suivi reste à ajouter. Aucune simulation n’est présentée comme une séance enregistrée ou effectuée avant l’enregistrement explicite.
+La migration de replanification conserve l’historique, les origines, les intervalles et les paramètres du dernier planning. Les révisions terminées sont déduites de la charge restante ; les séances conservées ne sont pas dupliquées. Les cours archivés et les horaires supprimés ne créent plus de nouvelles révisions. L’interface signale les données modifiées et exige un nouveau calcul avant de sauvegarder une version périmée. Aucune simulation n’est présentée comme une séance enregistrée ou effectuée avant l’enregistrement explicite.
 
 ## Vérification
 
-`node --test tests/scheduler.test.mjs` : 18 tests réussis sur la fusion des disponibilités, le retrait des occupations, plusieurs occurrences, la conservation des minutes, les conflits, les examens, les révisions existantes, le rattrapage explicite, les périodes invalides, les jours distincts, l’ordre et les écarts des répétitions, les pauses configurables (y compris autour de minuit), les disponibilités rares, les séries partiellement réalisables et les raisons des charges non placées. Lint et TypeScript réussis.
+`node --test tests/scheduler.test.mjs` vérifie la fusion des disponibilités, plusieurs occurrences, la conservation des minutes, les conflits, les examens, le rattrapage, l’ordre et les écarts des répétitions, les pauses autour de minuit et les séries partiellement réalisables. Les tests de replanification couvrent aussi la déduction du travail terminé, les changements de multiplicateur et d’intervalles, les séances conservées hors période, les cours archivés et les horaires futurs déplacés ou raccourcis.
 
 Les captures d’une simulation avec un compte connecté ont confirmé l’affichage d’un planning de 30 occurrences et la conservation de 180 heures de révision (150 heures placées et 30 heures non placées avant ces corrections). Elles ont aussi révélé des répétitions rapprochées, l’absence de pause et des raisons trop générales. Le résultat corrigé avec les données réelles reste à vérifier dans le navigateur.

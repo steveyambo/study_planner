@@ -13,6 +13,7 @@ export function SessionList({ courseId, multiplier, sessions, intervals, examDat
   return (
     <section className="mt-6 border-t border-slate-200 pt-5">
       <h3 className="font-semibold">Horaires hebdomadaires</h3>
+      <p className="mt-3 text-sm leading-6 text-slate-600">Après la première sauvegarde du planning, un horaire ajouté ou modifié s’applique à partir d’aujourd’hui. Les séances passées conservent leur historique.</p>
       {sorted.length === 0 ? <p className="mt-3 text-sm text-slate-600">Aucun horaire ajouté.</p> : <>
         <p className="mt-3 text-sm leading-6 text-slate-600">Total par semaine : {formatMinutes(total)} de cours · {formatMinutes(sorted.reduce((sum, session) => sum + (calculateStudyTime(sessionMinutes(session.start_time, session.end_time) ?? 0, multiplier) ?? 0), 0))} de révision recommandée.</p>
         <ul className="mt-4 space-y-4">{sorted.map((session) => <li key={`${session.id}-${session.start_time}-${session.end_time}-${session.day_of_week}`} className="rounded-lg bg-slate-50 p-4">

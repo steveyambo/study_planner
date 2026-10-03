@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     if ((action !== "save" && action !== "delete") || (id && !isCourseId(id))) return finish("invalid");
     const exam = action === "save" ? parseExam(fields) : null;
     if (action === "save" && !exam) return finish("invalid");
-    const { data: courses, error: coursesError } = await supabase.from("courses").select("id").eq("user_id", userId);
+    const { data: courses, error: coursesError } = await supabase.from("courses").select("id").eq("user_id", userId).is("archived_at", null);
     if (coursesError) return finish("failed");
     const courseIds = (courses ?? []).map((course) => course.id);
     if (courseIds.length === 0 || (exam && !courseIds.includes(exam.course_id))) return finish("missing");

@@ -8,9 +8,9 @@ import { generateRevisionDates } from "./generateRevisionDates";
 import { findAvailableSlots, type MinuteSlot } from "./findAvailableSlots";
 
 export type PlannerCourse = Course & { course_sessions: CourseSession[]; exams: Exam[] };
-export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string };
-export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number };
-export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
+export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string; id?: string; course_id?: string; source_course_session_id?: string | null; source_course_session_key?: string | null; source_course_date?: string | null; revision_stage?: number; revision_interval_days?: number | null; duration_minutes?: number; source_start_time?: string | null; source_end_time?: string | null; cancellation_reason?: string | null };
+export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; today?: string };
+export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; intervalDays: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
 export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "previous_unplaced";
 export type UnscheduledRevision = { courseId: string; courseDate: string; durationMinutes: number; stage?: number; reasonCode: UnscheduledReason; reason: string };
 const DAY = 86_400_000;
@@ -34,13 +34,27 @@ export function generateSchedule(input: ScheduleInput) {
   const breakMinutes = input.breakMinutes ?? 15;
   if (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 60) throw new Error("La pause doit être un entier entre 0 et 60 minutes.");
   const withBreak = (study: MinuteSlot): MinuteSlot => ({ start: study.start - breakMinutes, end: study.end + breakMinutes });
-  const existingStudies = input.existing.filter((s) => s.status !== "cancelled").map((s) => ({ day: day(s.scheduled_date), slot: withBreak(slot(s.start_time, s.end_time)) }));
+  const activeCourses = input.courses.filter((course) => !course.archived_at);
+  const sourceKey = (study: ExistingStudy) => study.source_course_session_key ?? study.source_course_session_id;
+  const knownIdentity = (study: ExistingStudy) => !!(sourceKey(study) && study.source_course_date && study.course_id && study.revision_stage);
+  const archivedIds = new Set(input.courses.filter((course) => course.archived_at).map((course) => course.id));
+  const isFixed = (study: ExistingStudy) => {
+    if (study.status === "completed") return true;
+    if (study.status !== "planned") return false;
+    if (input.today && study.scheduled_date < input.today) return false;
+    if (input.today && study.course_id && archivedIds.has(study.course_id) && study.scheduled_date >= input.today) return false;
+    // Anciennes séances sans identité : conserver leurs créneaux sans leur attribuer de charge.
+    if (!knownIdentity(study)) return true;
+    return study.scheduled_date < input.planningStart || study.scheduled_date > input.planningEnd;
+  };
+  const fixedStudies = input.existing.filter(isFixed);
+  const existingStudies = fixedStudies.map((s) => ({ day: day(s.scheduled_date), slot: withBreak(slot(s.start_time, s.end_time)) }));
   const free = new Map<number, MinuteSlot[]>();
   for (let d = ps; d <= pe; d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
     const availability = input.availability.filter((a) => a.day_of_week === weekday).map((a) => slot(a.start_time, a.end_time));
-    const busy = input.courses.flatMap((c) => [
-      ...(d >= cs && d <= ce ? c.course_sessions.filter((s) => s.day_of_week === weekday).map((s) => slot(s.start_time, s.end_time)) : []),
+    const busy = activeCourses.flatMap((c) => [
+      ...(d >= cs && d <= ce ? c.course_sessions.filter((s) => s.day_of_week === weekday && (!s.effective_from || date(d) >= s.effective_from)).map((s) => slot(s.start_time, s.end_time)) : []),
       ...c.exams.filter((e) => e.exam_date === date(d)).map((e) => slot(e.start_time, e.end_time)),
     ]);
     for (const study of existingStudies) {
@@ -50,24 +64,55 @@ export function generateSchedule(input: ScheduleInput) {
     }
     free.set(d, findAvailableSlots(availability, busy));
   }
-  type Task = Omit<PlannedRevision, "scheduledDate" | "startTime" | "endTime"> & { earliest: number; latest: number; target: number; intervalDays: number; examDate: string | null };
+  type Task = Omit<PlannedRevision, "scheduledDate" | "startTime" | "endTime"> & { earliest: number; latest: number; target: number; preferredTarget: number; intervalDays: number; examDate: string | null };
   const tasks: Task[] = [];
   const unscheduled: UnscheduledRevision[] = [];
   let excludedMinutes = 0, occurrences = 0;
+  const historical = new Map<string, ExistingStudy[]>();
+  for (const study of input.existing) if (knownIdentity(study) && !(study.status === "cancelled" && study.cancellation_reason === "source_changed")) {
+    const key = JSON.stringify([study.course_id, sourceKey(study), study.source_course_date]);
+    const group = historical.get(key) ?? [];
+    group.push(study); historical.set(key, group);
+  }
   for (let d = cs; d <= Math.min(ce, pe); d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
-    for (const course of input.courses) for (const source of course.course_sessions.filter((s) => s.day_of_week === weekday)) {
+    for (const course of activeCourses) for (const source of course.course_sessions) {
+      const history = historical.get(JSON.stringify([course.id, source.id, date(d)])) ?? [];
+      const currentOccurrence = source.day_of_week === weekday && (!source.effective_from || date(d) >= source.effective_from);
+      const historicalOccurrence = history.length > 0 && (!source.effective_from || date(d) < source.effective_from);
+      if (!currentOccurrence && !historicalOccurrence) continue;
       occurrences++;
-      const minutes = calculateStudyTime(sessionMinutes(source.start_time, source.end_time) ?? 0, course.revision_multiplier);
+      const snapshot = historicalOccurrence ? history.find((study) => study.source_start_time && study.source_end_time) : undefined;
+      const minutes = calculateStudyTime(sessionMinutes(snapshot?.source_start_time ?? source.start_time, snapshot?.source_end_time ?? source.end_time) ?? 0, course.revision_multiplier);
       if (minutes === null) throw new Error("Charge de révision invalide.");
-      const generated = generateRevisionDates(date(d), minutes, input.intervals, course.exams.map((e) => e.exam_date));
+      const fixed = history.filter(isFixed);
+      const retainedMinutes = fixed.reduce((sum, study) => sum + (study.duration_minutes ?? sessionMinutes(study.start_time, study.end_time) ?? 0), 0);
+      const remainingMinutes = Math.max(0, minutes - retainedMinutes);
+      if (!remainingMinutes) continue;
+      const orderedIntervals = [...input.intervals].sort((a,b) => a-b);
+      let stages = orderedIntervals.map((intervalDays, index) => ({ intervalDays, stage: index + 1 })).filter((entry) => !fixed.some((study) => study.revision_stage === entry.stage));
+      const lastCompletedStage = Math.max(0, ...fixed.filter((study) => study.status === "completed").map((study) => study.revision_stage ?? 0));
+      // Une répétition réalisée après des séances manquées reste acquise : rattraper la charge après elle.
+      if (stages.some((entry) => entry.stage < lastCompletedStage)) {
+        const lastRetainedStage = Math.max(orderedIntervals.length, ...fixed.map((study) => study.revision_stage ?? 0));
+        stages = stages.map((entry, index) => ({ ...entry, stage: lastRetainedStage + index + 1 }));
+      }
+      // Si la charge augmente après toutes les répétitions terminées, ajouter une révision complémentaire.
+      if (!stages.length && orderedIntervals.length) stages.push({ intervalDays: orderedIntervals.at(-1)!, stage: Math.max(orderedIntervals.length, ...fixed.map((s) => s.revision_stage ?? 0)) + 1 });
+      const generated = generateRevisionDates(date(d), remainingMinutes, stages.map((entry) => entry.intervalDays), course.exams.map((e) => e.exam_date));
       if (generated.reason === "invalid") throw new Error("Intervalles ou dates de révision invalides.");
-      if (generated.reason === "no_window") { unscheduled.push({ courseId: course.id, courseDate: date(d), durationMinutes: minutes, reasonCode: "exam_window", reason: `Aucun jour entre le cours et l’examen du ${generated.examDate}` }); continue; }
+      if (generated.reason === "no_window") { unscheduled.push({ courseId: course.id, courseDate: date(d), durationMinutes: remainingMinutes, reasonCode: "exam_window", reason: `Aucun jour entre le cours et l’examen du ${generated.examDate}` }); continue; }
       for (const revision of generated.revisions) {
         const target = day(revision.scheduledDate);
-        if (target < ps && !input.includeOverdue) { excludedMinutes += revision.durationMinutes; continue; }
-        const latest = generated.examDate ? Math.min(pe, day(generated.examDate) - 1) : pe;
-        tasks.push({ courseId: course.id, sourceId: source.id, courseDate: date(d), stage: [...input.intervals].sort((a,b) => a-b).indexOf(revision.intervalDays) + 1, durationMinutes: revision.durationMinutes, desiredDate: revision.scheduledDate, earliest: Math.max(ps, d + 1), latest, target, intervalDays: revision.intervalDays, examDate: generated.examDate });
+        const stage = stages.find((entry) => entry.intervalDays === revision.intervalDays)!.stage;
+        const previouslyPending = history.some((study) => study.status === "planned" || study.status === "completed" || study.status === "missed" || study.cancellation_reason === "replanned");
+        if (target < ps && !input.includeOverdue && !previouslyPending) { excludedMinutes += revision.durationMinutes; continue; }
+        const earlierFixed = fixed.filter((study) => study.revision_stage! < stage).map((study) => day(study.scheduled_date) + 1);
+        const laterFixed = fixed.filter((study) => study.revision_stage! > stage).map((study) => day(study.scheduled_date) - 1);
+        const anchor = [...fixed].filter((study) => study.revision_stage! < stage).sort((a,b) => b.revision_stage! - a.revision_stage!)[0];
+        const preferredTarget = anchor ? Math.max(target, day(anchor.scheduled_date) + Math.max(1, revision.intervalDays - (anchor.revision_interval_days ?? orderedIntervals[anchor.revision_stage! - 1] ?? revision.intervalDays))) : target;
+        const latest = Math.min(pe, generated.examDate ? day(generated.examDate) - 1 : pe, ...laterFixed);
+        tasks.push({ courseId: course.id, sourceId: source.id, courseDate: date(d), stage, durationMinutes: revision.durationMinutes, desiredDate: revision.scheduledDate, earliest: Math.max(ps, d + 1, ...earlierFixed), latest, target, preferredTarget, intervalDays: revision.intervalDays, examDate: generated.examDate });
       }
     }
   }
@@ -131,7 +176,8 @@ export function generateSchedule(input: ScheduleInput) {
       continue;
     }
     if (task.latest < task.earliest) {
-      fail("exam_window", `Aucun jour dans le planning avant l’examen du ${task.examDate}.`);
+      if (task.examDate && day(task.examDate) - 1 < task.earliest) fail("exam_window", `Aucun jour dans le planning avant l’examen du ${task.examDate}.`);
+      else fail("spacing", "Les séances conservées ne laissent aucun jour pour placer cette répétition dans l’ordre. Élargis la période à replanifier.");
       continue;
     }
     if (blocked.has(key)) {
@@ -147,7 +193,7 @@ export function generateSchedule(input: ScheduleInput) {
       continue;
     }
     // En rattrapage, reporter les écarts souhaités à partir de la répétition précédente.
-    const target = Math.max(task.target, prior ? prior.day + task.intervalDays - prior.intervalDays : earliest);
+    const target = Math.max(task.preferredTarget, prior ? prior.day + task.intervalDays - prior.intervalDays : earliest);
     const candidates: number[] = [];
     for (let d = Math.max(earliest, target); d <= latest; d++) candidates.push(d);
     for (let d = Math.min(target - 1, latest); d >= earliest; d--) candidates.push(d);
@@ -172,7 +218,7 @@ export function generateSchedule(input: ScheduleInput) {
       if (occupied.start < 0 && free.has(d - 1)) free.set(d - 1, findAvailableSlots(free.get(d - 1)!, [{ start: 1440 + occupied.start, end: 1440 }]));
       if (occupied.end > 1440 && free.has(d + 1)) free.set(d + 1, findAvailableSlots(free.get(d + 1)!, [{ start: 0, end: occupied.end - 1440 }]));
       previous.set(key, { day: d, intervalDays: task.intervalDays });
-      planned.push({ courseId: task.courseId, sourceId: task.sourceId, courseDate: task.courseDate, stage: task.stage, durationMinutes: task.durationMinutes, desiredDate: task.desiredDate, scheduledDate: date(d), startTime: time(start), endTime: time(end) });
+      planned.push({ courseId: task.courseId, sourceId: task.sourceId, courseDate: task.courseDate, stage: task.stage, intervalDays: task.intervalDays, durationMinutes: task.durationMinutes, desiredDate: task.desiredDate, scheduledDate: date(d), startTime: time(start), endTime: time(end) });
     } else {
       const limit = task.examDate && day(task.examDate) - 1 <= pe ? `avant l’examen du ${task.examDate}` : `jusqu’à la fin du planning (${input.planningEnd})`;
       fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min entre révisions, du ${date(earliest)} au ${date(latest)} (${limit}).`);

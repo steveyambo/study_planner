@@ -8,22 +8,25 @@ import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
 
 export const metadata: Metadata = { title: "Mes cours | Study Planner" };
 const messages: Record<string, string> = {
-  created: "Cours ajouté.", updated: "Cours modifié.", deleted: "Cours supprimé.",
+  created: "Cours ajouté.", updated: "Cours modifié.", archived: "Cours archivé. Son historique est conservé. Recalcule le planning pour utiliser les créneaux libérés.",
   invalid: "Vérifie les champs : code et nom requis, couleur valide et multiplicateur entre 0,01 et 99,99 avec deux décimales maximum.",
   duplicate: "Tu as déjà un cours avec ce code.", missing: "Ce cours n’est plus disponible.", failed: "L’enregistrement a échoué. Réessaie.",
   session_created: "Horaire ajouté.", session_updated: "Horaire modifié.", session_deleted: "Horaire supprimé.",
   session_invalid: "Vérifie le jour et les heures : la fin doit être après le début, dans la même journée.",
   session_overlap: "Ce créneau chevauche déjà un horaire de ce cours.",
+  migration: "L’archivage nécessite la migration de replanification. Exécute-la dans Supabase avant de réessayer.",
 };
 
 export default async function CoursesPage({ searchParams }: { searchParams: Promise<{ result?: string | string[] }> }) {
   const { supabase, userId } = await requireUser();
-  const { data, error } = await supabase.from("courses").select("id,code,name,color,revision_multiplier,course_sessions(id,course_id,day_of_week,start_time,end_time),exams(exam_date)").eq("user_id", userId).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("courses").select("*,course_sessions(id,course_id,day_of_week,start_time,end_time),exams(exam_date)").eq("user_id", userId).order("created_at", { ascending: false });
   if (error) throw new Error("Impossible de charger les cours.");
   const { data: rule, error: ruleError } = await supabase.from("revision_rules").select("intervals").eq("user_id", userId).maybeSingle();
   if (ruleError) throw new Error("Impossible de charger les intervalles de révision.");
   const intervals = (rule?.intervals ?? DEFAULT_REVISION_INTERVALS) as number[];
-  const courses = (data ?? []) as (Course & { course_sessions: CourseSession[]; exams: { exam_date: string }[] })[];
+  const allCourses = (data ?? []) as (Course & { course_sessions: CourseSession[]; exams: { exam_date: string }[] })[];
+  const courses = allCourses.filter((course) => !course.archived_at);
+  const archivedCourses = allCourses.filter((course) => course.archived_at);
   const { result } = await searchParams;
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
   return (
@@ -57,6 +60,14 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           ))}
         </section>
       </div>
+      {archivedCourses.length > 0 && <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-xl font-semibold">Cours archivés</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Ces cours ne participent plus au planning. Leurs séances terminées et leur historique restent conservés. Leur code reste réservé.</p>
+        <ul className="mt-4 space-y-3">{archivedCourses.map((course) => <li key={course.id} className="flex items-center gap-3 text-sm text-slate-600">
+          <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
+          <span>{course.code} — {course.name}</span>
+        </li>)}</ul>
+      </section>}
     </>
   );
 }

@@ -12,11 +12,11 @@ const messages: Record<string, string> = { created: "Examen ajouté.", updated: 
 export default async function ExamsPage({ searchParams }: { searchParams: Promise<{ result?: string | string[] }> }) {
   const { supabase, userId } = await requireUser();
   const [{ data: courses, error: coursesError }, { data: profile, error: profileError }] = await Promise.all([
-    supabase.from("courses").select("id,code,name,color").eq("user_id", userId).order("code"),
+    supabase.from("courses").select("*").eq("user_id", userId).order("code"),
     supabase.from("profiles").select("timezone").eq("id", userId).maybeSingle(),
   ]);
   if (coursesError || profileError) throw new Error("Impossible de charger les cours et le profil.");
-  const ownedCourses = courses ?? [];
+  const ownedCourses = (courses ?? []).filter((course) => !course.archived_at);
   const today = todayInTimezone(profile?.timezone ?? "America/New_York");
   let exams: Exam[] = [];
   if (ownedCourses.length) {
