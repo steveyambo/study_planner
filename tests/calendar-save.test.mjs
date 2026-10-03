@@ -12,9 +12,9 @@ function loadModule(path, dependencies = {}) {
   vm.runInNewContext(code,{exports,require:(name)=>dependencies[name],URL});
   return exports;
 }
-function setup({ existing = [], occurrences = [], historyVersion = 1, periodVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
+function setup({ existing = [], occurrences = [], historyVersion = 1, periodVersion = 1, missedVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
   const writes = [], filters = [], inputs = [], ranges = [], orders = [];
-  const data = { profiles: { timezone: "America/New_York", planning_revision: revision, planning_history_version: historyVersion, course_period_version: periodVersion }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing, course_occurrences: occurrences };
+  const data = { profiles: { timezone: "America/New_York", planning_revision: revision, planning_history_version: historyVersion, course_period_version: periodVersion, missed_sessions_version: missedVersion }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing, course_occurrences: occurrences };
   const supabase = {
     from(table) {
       let from = 0, to = Infinity;
@@ -168,4 +168,20 @@ test("missing per-course period migration refuses saving before computing or wri
   const response = await context.POST(request());
   assert.match(response.headers.get("location"), /result=migration/);
   assert.equal(context.writes.length, 0); assert.equal(context.inputs.length, 0);
+});
+
+test("daily cap is passed to engine and SQL; invalid caps cannot be saved", async () => {
+  const context = setup();
+  await context.POST(request({ maxDailyMinutes: "180" }));
+  assert.equal(context.inputs[0].maxDailyMinutes, 180);
+  assert.equal(context.writes[0].args.p_max_daily_minutes, 180);
+  for (const cap of ["14", "1441", "90.5", "bad"]) {
+    const invalid = setup(); await invalid.POST(request({ maxDailyMinutes: cap })); assert.equal(invalid.writes.length, 0);
+  }
+});
+test("daily cap migration and SQL conflict have actionable results", async () => {
+  const old = setup({ missedVersion: null });
+  assert.match((await old.POST(request())).headers.get("location"), /result=migration/); assert.equal(old.writes.length, 0);
+  const conflict = setup({ rpcError: { message: "daily_limit" } });
+  assert.match((await conflict.POST(request())).headers.get("location"), /result=daily_limit/);
 });

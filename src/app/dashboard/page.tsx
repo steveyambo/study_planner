@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/supabase/require-user";
 import { loadStudySessions } from "@/lib/supabase/load-study-sessions";
 import { studySummary, type DashboardStudy } from "@/lib/dashboard/study-summary";
-import { formatCalendarDate, todayInTimezone } from "@/lib/utils/calendar-date";
+import { formatCalendarDate, todayInTimezone, timeInTimezone, sessionHasElapsed } from "@/lib/utils/calendar-date";
 
 export const metadata: Metadata = { title: "Tableau de bord | Study Planner" };
 const messages: Record<string, string> = {
@@ -14,6 +14,8 @@ const messages: Record<string, string> = {
   future: "Tu peux terminer une séance à partir du jour prévu.",
   invalid: "La séance sélectionnée n’est pas valide.",
   failed: "Impossible de valider cette séance. Réessaie ; aucune réussite n’a été confirmée.",
+  missed_migration: "Applique la migration 202610030006_missed_sessions.sql dans Supabase après la 005, puis réessaie.",
+  missed_future: "L’heure de fin de cette séance n’est pas encore passée. Elle ne peut pas être signalée comme manquée.",
 };
 const minutesLabel = (minutes: number) => `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ""}`;
 
@@ -27,6 +29,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   if (profile.error || courses.error) throw new Error("Impossible de charger le tableau de bord.");
   const timezone = profile.data?.timezone ?? "America/New_York";
   const today = todayInTimezone(timezone);
+  const localTime = timeInTimezone(timezone);
   const summary = studySummary(studies as DashboardStudy[], today);
   const { result } = await searchParams;
   const exam = (courses.data ?? []).filter((course) => !course.archived_at)
@@ -41,10 +44,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <p className="font-semibold">{code} · {formatCalendarDate(study.scheduled_date)} · {study.start_time.slice(0, 5)}–{study.end_time.slice(0, 5)}</p>
       <p className="mt-1 text-sm text-slate-600">{study.course_name_snapshot ?? course?.name}{study.source_course_date && ` · Séance de cours du ${formatCalendarDate(study.source_course_date)}`} · Révision {study.revision_stage} · {minutesLabel(study.duration_minutes)}</p>
       {study.status === "completed" ? <p className="mt-2 text-sm font-medium text-emerald-700">✓ Terminée{study.completed_at && ` le ${formatCalendarDate(todayInTimezone(timezone, new Date(study.completed_at)))}`}</p>
+        : study.status === "missed" ? <p className="mt-2 text-sm font-medium text-amber-800">Manquée · Le temps reste à faire, sauf s’il a déjà été rattrapé.</p>
         : study.scheduled_date <= today ? <form action="/dashboard/complete" method="post" className="mt-3">
           <input type="hidden" name="id" value={study.id} />
           <button type="submit" aria-label={`Terminer la révision ${study.revision_stage} de ${code}, prévue le ${formatCalendarDate(study.scheduled_date)} à ${study.start_time.slice(0, 5)}`} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">✓ Terminé</button>
         </form> : <p className="mt-2 text-sm text-slate-600">Planifiée · À valider à partir du jour prévu.</p>}
+      {study.status === "planned" && study.source_course_date && (study.source_course_session_key ?? study.source_course_session_id) && !course?.archived_at && sessionHasElapsed(study, today, localTime) && <form action="/dashboard/missed" method="post" className="mt-3">
+        <input type="hidden" name="id" value={study.id} />
+        <p className="mb-2 text-sm text-amber-800">Horaire dépassé. Si tu n’as pas fait cette révision :</p>
+        <button className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-900">Séance manquée · Préparer le rattrapage</button>
+      </form>}
     </li>;
   };
   const cardClass = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
@@ -80,6 +89,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <Link href="/calendar" className="mt-4 inline-block font-medium text-indigo-700">Voir toutes les séances et recalculer le planning</Link>
     </section>
     {!!summary.completed.length && <details className="mt-8 rounded-xl border border-slate-200 bg-white p-5"><summary className="cursor-pointer font-semibold">Dernières séances terminées ({summary.completed.length} au total)</summary><ul className="mt-4 space-y-3">{summary.completed.slice(0, 10).map(renderStudy)}</ul></details>}
-    {!!summary.missedCount && <p className="mt-6 text-sm text-amber-800">{summary.missedCount} séances manquées sont conservées dans l’historique de la planification.</p>}
+    {!!summary.missedCount && <details className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-5"><summary className="cursor-pointer font-semibold">Séances manquées ({summary.missedCount})</summary>
+      <p className="mt-3 text-sm text-slate-600">Cet historique reste conservé après le rattrapage. Le recalcul déduit les révisions terminées et déjà planifiées ; il n’ajoute pas une copie pour chaque ligne manquée.</p>
+      <ul className="mt-4 space-y-3">{summary.missed.slice(-10).reverse().map(renderStudy)}</ul>
+      <Link href="/calendar" className="mt-4 inline-block font-semibold text-indigo-700">Préparer un planning de rattrapage</Link>
+    </details>}
   </>;
 }

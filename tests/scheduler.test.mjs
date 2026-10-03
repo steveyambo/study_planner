@@ -16,7 +16,7 @@ const { findAvailableSlots } = load("src/lib/scheduler/findAvailableSlots.ts");
 const { generateSchedule } = load("src/lib/scheduler/generateSchedule.ts");
 const { calculatePriority } = load("src/lib/scheduler/calculatePriority.ts");
 function fixture() {
-  return { courses: [{ id: "a", code: "INF", name: "Info", color: "#000000", revision_multiplier: 2, course_sessions: [{ id: "s", course_id: "a", day_of_week: 1, start_time: "18:00", end_time: "21:00" }], exams: [] }], availability: Array.from({ length: 7 }, (_, i) => ({ id: String(i), day_of_week: i + 1, start_time: "17:00", end_time: "22:00" })), existing: [], intervals: [1,3,7,14], courseStart: "2026-09-14", courseEnd: "2026-09-28", planningStart: "2026-09-15", planningEnd: "2026-10-15", includeOverdue: false };
+  return { courses: [{ id: "a", code: "INF", name: "Info", color: "#000000", revision_multiplier: 2, course_sessions: [{ id: "s", course_id: "a", day_of_week: 1, start_time: "18:00", end_time: "21:00" }], exams: [] }], availability: Array.from({ length: 7 }, (_, i) => ({ id: String(i), day_of_week: i + 1, start_time: "17:00", end_time: "22:00" })), existing: [], intervals: [1,3,7,14], courseStart: "2026-09-14", courseEnd: "2026-09-28", planningStart: "2026-09-15", planningEnd: "2026-10-15", includeOverdue: false, maxDailyMinutes: 1440 };
 }
 test("availability is merged and occupied periods are subtracted", () => {
   const slots = findAvailableSlots([{ start: 1020, end: 1320 }, { start: 1080, end: 1200 }], [{ start: 1020, end: 1110 }]);
@@ -353,4 +353,35 @@ test("an obsolete durable origin does not invent a past course after proposals a
   input.courses[0].course_sessions[0].effective_from="2026-10-03";
   input.occurrences=[trackedOccurrence({is_obsolete:true})];input.existing=[];
   const result=generateSchedule(input);assert.equal(result.occurrences,0);assert.equal(result.planned.length,0);
+});
+
+test("daily workload is capped across subjects and moved to later days", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.maxDailyMinutes = 180; input.intervals = [1];
+  input.courses[0].revision_multiplier = 1;
+  input.courses.push({ ...input.courses[0], id: "b", course_sessions: [{ ...input.courses[0].course_sessions[0], id: "sb", course_id: "b" }] });
+  const result = generateSchedule(input);
+  const days = new Map();
+  for (const r of result.planned) days.set(r.scheduledDate, (days.get(r.scheduledDate) ?? 0) + r.durationMinutes);
+  assert.equal(result.planned.length, 2); assert.equal(days.size, 2);
+  assert.ok([...days.values()].every(n => n <= 180));
+});
+
+test("retained work counts toward daily cap, oversized revisions remain unplaced", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.maxDailyMinutes = 180; input.intervals = [1];
+  input.courses[0].revision_multiplier = 1;
+  input.existing = [{ status: "completed", scheduled_date: "2026-09-15", start_time: "08:00", end_time: "09:00", duration_minutes: 60 }];
+  assert.ok(generateSchedule(input).planned.every(r => r.scheduledDate !== "2026-09-15"));
+  input.maxDailyMinutes = 120;
+  const result = generateSchedule(input); assert.equal(result.planned.length, 0);
+  assert.match(result.unscheduled[0].reason, /limite de 120/);
+  assert.throws(() => generateSchedule({ ...input, maxDailyMinutes: 14 }), /maximum quotidien/);
+  assert.throws(() => generateSchedule({ ...input, maxDailyMinutes: 240.5 }), /maximum quotidien/);
+});
+
+test("a fixed day above the lowered cap is reported, with no added study on that day", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.maxDailyMinutes = 60;
+  input.existing = [{ status: "completed", scheduled_date: "2026-09-15", start_time: "08:00", end_time: "10:00", duration_minutes: 120 }];
+  const result = generateSchedule(input);
+  assert.equal(result.retainedOverLimitDays[0], "2026-09-15");
+  assert.ok(result.planned.every(r => r.scheduledDate !== "2026-09-15"));
 });

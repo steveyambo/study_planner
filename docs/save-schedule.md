@@ -11,6 +11,8 @@
 
 6. Exécuter ensuite `202610030004_complete_study_session.sql`, puis `202610030005_course_periods.sql`. La sauvegarde actuelle exige les périodes par matière ; voir `course-periods.md`.
 
+7. Exécuter `202610030006_missed_sessions.sql` pour le rattrapage et le plafond quotidien ; voir `missed-sessions.md`.
+
 La migration a été compilée et testée dans PostgreSQL local. Elle n’a pas été exécutée sur le projet Supabase distant par l’agent.
 
 ## Utilisation

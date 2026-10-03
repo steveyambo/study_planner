@@ -5,7 +5,7 @@ import { generateSchedule, type ScheduleInput } from "@/lib/scheduler/generateSc
 import { formatMinutes } from "@/lib/courses/session-time";
 import { formatCalendarDate } from "@/lib/utils/calendar-date";
 
-export type PlanningPreferences = { courseStart?: string; courseEnd?: string; planningStart?: string; planningEnd?: string; includeOverdue?: boolean; breakMinutes?: number };
+export type PlanningPreferences = { courseStart?: string; courseEnd?: string; planningStart?: string; planningEnd?: string; includeOverdue?: boolean; breakMinutes?: number; maxDailyMinutes?: number };
 const addDays = (value: string, count: number) => new Date(Date.parse(`${value}T00:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
 const validDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 
@@ -25,7 +25,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
     try {
       const planningStart = String(fields.get("planningStart"));
       if (planningStart <= today) throw new Error("Choisis un début de planning à partir de demain, pour éviter les heures déjà passées aujourd’hui.");
-      setResult(generateSchedule({ ...data, today, courseStart: String(fields.get("courseStart")), courseEnd: String(fields.get("courseEnd")), planningStart, planningEnd: String(fields.get("planningEnd")), includeOverdue: fields.get("includeOverdue") === "on", breakMinutes: Number(fields.get("breakMinutes")) }));
+      setResult(generateSchedule({ ...data, today, courseStart: String(fields.get("courseStart")), courseEnd: String(fields.get("courseEnd")), planningStart, planningEnd: String(fields.get("planningEnd")), includeOverdue: fields.get("includeOverdue") === "on", breakMinutes: Number(fields.get("breakMinutes")), maxDailyMinutes: Number(fields.get("maxDailyMinutes")) }));
       setSaveFields(Object.fromEntries([...fields.entries()].map(([key, value]) => [key, String(value)])));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossible de calculer le planning."); }
   }
@@ -47,6 +47,11 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
         <input required id="breakMinutes" name="breakMinutes" type="number" min={0} max={60} step={1} defaultValue={typeof defaults?.breakMinutes === "number" && Number.isInteger(defaults.breakMinutes) && defaults.breakMinutes >= 0 && defaults.breakMinutes <= 60 ? defaults.breakMinutes : 15} aria-describedby="breakMinutesHelp" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />
         <p id="breakMinutesHelp" className="mt-2 text-sm leading-6 text-slate-600">De 0 à 60 minutes. La pause réserve du temps entre les révisions, sans augmenter les heures de travail affichées.</p>
       </div>
+      <div className="max-w-sm">
+        <label htmlFor="maxDailyMinutes" className="block text-sm font-medium">Maximum de révision par jour (minutes)</label>
+        <input required id="maxDailyMinutes" name="maxDailyMinutes" type="number" min={15} max={1440} step={1} defaultValue={defaults?.maxDailyMinutes ?? 240} aria-describedby="dailyLimitHelp" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <p id="dailyLimitHelp" className="mt-2 text-sm leading-6 text-slate-600">240 minutes = 4 h. Le total couvre toutes les matières, sans les pauses ni les cours. Les séances conservées comptent dans cette limite ; une révision reste entière.</p>
+      </div>
       <label className="flex items-start gap-3 text-sm leading-6"><input name="includeOverdue" type="checkbox" defaultChecked={defaults?.includeOverdue === true} className="mt-1" /><span>Inclure les révisions déjà échues comme restant à faire. Coche seulement si tu veux simuler leur rattrapage : l’application ne connaît pas encore les révisions que tu as faites en dehors d’elle.</span></label>
       <p className="text-sm leading-6 text-slate-600">Les révisions terminées sont déduites de la charge restante. Le calcul remplace les révisions encore planifiées dans la période choisie et réserve les séances conservées en dehors de cette période. Les cours archivés et les horaires supprimés ne génèrent plus de nouvelles révisions.</p>
       <p className="text-sm leading-6 text-slate-600">À l’enregistrement, les anciennes propositions remplacées sont supprimées. Les révisions terminées et manquées restent dans le suivi ; les séances de cours d’origine restent connues pour le rattrapage.</p>
@@ -55,6 +60,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
     {error && <p role="alert" className="mt-5 text-red-700">{error}</p>}
     {result && <section aria-live="polite" className="mt-8 space-y-5">
       <h2 className="text-xl font-semibold">Planning proposé</h2>
+      {result.retainedOverLimitDays.length > 0 && <p className="text-sm text-amber-900">Des séances conservées dépassent déjà le maximum quotidien sur {result.retainedOverLimitDays.length} jours. Elles restent conservées ; aucune nouvelle révision n’est ajoutée sur ces jours.</p>}
       <p className="text-sm text-slate-600">Les créneaux sont attribués en priorité selon la charge à placer, la proximité et l’importance de l’examen de chaque cours.</p>
       <p>{result.occurrences} séances de cours · {formatMinutes(result.planned.reduce((n, revision) => n + revision.durationMinutes, 0))} placées · {formatMinutes(result.unscheduled.reduce((n, revision) => n + revision.durationMinutes, 0))} non placées.</p>
       {result.excludedMinutes > 0 && <p className="text-sm text-slate-600">{formatMinutes(result.excludedMinutes)} déjà échues exclues. Cela ne signifie pas qu’elles ont été effectuées.</p>}

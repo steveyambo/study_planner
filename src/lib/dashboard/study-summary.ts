@@ -25,6 +25,7 @@ export function studySummary(studies: DashboardStudy[], today: string) {
     upcoming: studies.filter((study) => study.status === "planned" && study.scheduled_date > today),
     completed: studies.filter((study) => study.status === "completed").sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? "")),
     missedCount: studies.filter((study) => study.status === "missed").length,
+    missed: studies.filter((study) => study.status === "missed"),
     dayMinutes: minutes(day), dayCompletedMinutes: minutes(day.filter((study) => study.status === "completed")),
     weekMinutes: minutes(week), weekCompletedMinutes: minutes(week.filter((study) => study.status === "completed")),
     weekStart, weekEnd,

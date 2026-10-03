@@ -31,5 +31,5 @@ Le moteur déduit le temps terminé et préserve ces séances lors du recalcul.
    et son temps est déduit du travail restant pour cette occurrence de cours.
 5. Une séance future présente son horaire sans bouton de validation.
 
-La gestion des séances manquées (phase 21) et le calendrier visuel (phase 22)
-restent les étapes suivantes.
+La gestion des séances manquées (phase 21) est décrite dans `missed-sessions.md`
+et nécessite la migration 006. Le calendrier visuel (phase 22) reste l’étape suivante.

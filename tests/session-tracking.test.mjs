@@ -117,3 +117,42 @@ test("dashboard renders an actionable saved session, completed history and futur
 test("a dashboard read failure is reported rather than displaying zero workload", async () => {
   await assert.rejects(renderDashboard([], { code: "offline" }), /Impossible de charger/);
 });
+
+test("missed session confirmation only sends its ID and opens an unsaved catch-up preview", async () => {
+  const calls = [];
+  const { POST } = load("src/app/dashboard/missed/route.ts", { rpc: async (...args) => { calls.push(args); return { data: "missed" }; } });
+  const response = await POST(request({ id, status: "completed", user_id: "attacker" }));
+  assert.equal(JSON.stringify(calls), JSON.stringify([["mark_study_missed", { p_session_id: id }]]));
+  assert.equal(response.status, 303); assert.match(response.headers.get("Location"), /\/calendar\?result=missed/);
+  assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+});
+test("missed action rejects external origins, invalid IDs, future sessions and missing migration", async () => {
+  let calls = 0;
+  const { POST } = load("src/app/dashboard/missed/route.ts", { rpc: async () => { calls++; return { data: "future" }; } });
+  assert.equal((await POST(request({ id }, "https://external.example"))).status, 403);
+  assert.equal(result(await POST(request({ id: "bad" }))), "invalid"); assert.equal(calls, 0);
+  assert.equal(result(await POST(request())), "missed_future");
+  const missing = load("src/app/dashboard/missed/route.ts", { rpc: async () => ({ error: { code: "PGRST202" } }) });
+  assert.equal(result(await missing.POST(request())), "missed_migration");
+});
+test("a session is overdue after its end time in the profile timezone, never before", () => {
+  const { sessionHasElapsed, timeInTimezone } = load("src/lib/utils/calendar-date.ts");
+  const study = { scheduled_date: "2026-10-03", end_time: "12:00:00" };
+  assert.equal(sessionHasElapsed(study, "2026-10-03", "11:59:59"), false);
+  assert.equal(sessionHasElapsed(study, "2026-10-03", "12:00:00"), true);
+  assert.equal(sessionHasElapsed(study, "2026-10-04", "00:00:00"), true);
+  assert.equal(timeInTimezone("America/New_York", new Date("2026-10-04T04:00:00Z")), "00:00:00");
+});
+
+test("dashboard offers missed confirmation only for elapsed planned sessions with a known source", async () => {
+  const base = { course_id: "course", start_time: "10:00:00", end_time: "11:30:00", revision_stage: 1, source_course_date: "1999-12-27", source_course_session_key: id };
+  const html = await renderDashboard([
+    { ...study("past", "2000-01-01", "planned"), ...base },
+    { ...study("future", "2099-01-01", "planned"), ...base },
+    { ...study("missed", "2000-01-01", "missed"), ...base },
+    { ...study("legacy", "2000-01-01", "planned"), ...base, source_course_date: null },
+  ]);
+  assert.equal((html.match(/action="\/dashboard\/missed"/g) ?? []).length, 1);
+  assert.match(html, /Séance manquée · Préparer le rattrapage/);
+  assert.match(html, /Séances manquées \(1\)/);
+});

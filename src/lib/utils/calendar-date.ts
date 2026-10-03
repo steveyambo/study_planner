@@ -8,6 +8,14 @@ export function daysUntil(date: string, today: string) {
   return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
 }
 
+export function timeInTimezone(timezone: string, now = new Date()) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(now);
+}
+
+export function sessionHasElapsed(study: { scheduled_date: string; end_time: string }, today: string, localTime: string) {
+  return study.scheduled_date < today || (study.scheduled_date === today && study.end_time <= localTime);
+}
+
 export function remainingDaysLabel(days: number) {
   return days < 0 ? "Examen passé" : days === 0 ? "Aujourd’hui" : days === 1 ? "Demain" : `Dans ${days} jours`;
 }

@@ -24,14 +24,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   if ([profile, courses, availability, rules].some((response) => response.error)) throw new Error("Impossible de charger les données de planification.");
   const { result } = await searchParams;
   const messages: Record<string, string> = {
+    missed: "Séance signalée comme manquée. Calcule un nouvel aperçu puis enregistre-le pour préparer le rattrapage des cours concernés. Le travail terminé reste acquis ; aucun créneau de rattrapage n’a encore été enregistré.",
+    daily_limit: "Enregistrement refusé : le maximum quotidien est dépassé. Recalcule l’aperçu avec une limite adaptée. L’ancien planning reste conservé.",
     saved: "Planning enregistré. Les anciennes propositions ont été remplacées sans s’accumuler. Les séances terminées et manquées sont conservées.",
-    migration: "Applique les migrations jusqu’à 202610030005_course_periods.sql dans Supabase, dans l’ordre, avant de sauvegarder.",
+    migration: "Applique les migrations jusqu’à 202610030006_missed_sessions.sql dans Supabase, dans l’ordre, avant de sauvegarder.",
     changed: "Tes données ont changé depuis cet aperçu. Recalcule le planning avant de l’enregistrer.",
     invalid: "Choisis une période de planning à partir de demain.",
     conflict: "Enregistrement refusé : vérifie les horaires et recalcule l’aperçu. Aucune sauvegarde partielle n’a été effectuée.",
     failed: "Impossible d’enregistrer le planning. Vérifie les paramètres et réessaie.",
   };
-  const planningRevision = profile.data?.planning_revision == null || profile.data?.planning_history_version !== 1 || profile.data?.course_period_version !== 1 || occurrences === null ? null : String(profile.data.planning_revision);
+  const planningRevision = profile.data?.planning_revision == null || profile.data?.planning_history_version !== 1 || profile.data?.course_period_version !== 1 || profile.data?.missed_sessions_version !== 1 || occurrences === null ? null : String(profile.data.planning_revision);
   const hasSavedPlanning = profile.data?.saved_planning_revision != null || !!existing.length;
   const isOutdated = hasSavedPlanning && planningRevision !== String(profile.data?.saved_planning_revision);
   const studies = existing as SavedStudy[];
@@ -52,7 +54,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <h1 className="text-3xl font-bold">Planification</h1>
     <p className="mt-3 text-slate-600">Réunis les séances de tous tes cours et calcule un planning dans tes disponibilités.</p>
     {result && Object.hasOwn(messages, result) && <p role="status" className="mt-5 rounded-lg bg-indigo-50 p-4 text-indigo-950">{messages[result]}</p>}
-    {planningRevision === null ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">La planification nécessite les migrations jusqu’à 202610030005_course_periods.sql, dans l’ordre. Tu peux calculer un aperçu ; applique cette migration dans Supabase avant de l’enregistrer.</p> : isOutdated ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Planning à recalculer : tes cours, horaires, examens, disponibilités, paramètres ou séances ont changé depuis la dernière sauvegarde. Calcule un aperçu puis enregistre-le pour mettre à jour les révisions futures de la période choisie.</p> : hasSavedPlanning ? <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-950">Les données n’ont pas changé depuis la dernière sauvegarde{savedPeriodLabel}. Tu peux choisir une autre période ou recalculer le planning.</p> : null}
+    {planningRevision === null ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">La planification nécessite les migrations jusqu’à 202610030006_missed_sessions.sql, dans l’ordre. Tu peux calculer un aperçu ; applique cette migration dans Supabase avant de l’enregistrer.</p> : isOutdated ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Planning à recalculer : tes cours, horaires, examens, disponibilités, paramètres ou séances ont changé depuis la dernière sauvegarde. Calcule un aperçu puis enregistre-le pour mettre à jour les révisions futures de la période choisie.</p> : hasSavedPlanning ? <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-950">Les données n’ont pas changé depuis la dernière sauvegarde{savedPeriodLabel}. Tu peux choisir une autre période ou recalculer le planning.</p> : null}
     {outsideWindow > 0 && <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">{outsideWindow} révisions futures sont conservées hors de la dernière période mise à jour{savedPeriodLabel}. Vérifie leurs créneaux ou élargis la prochaine replanification après une modification des données.</p>}
     {!!studies.length && <section className="mt-8 space-y-3"><h2 className="text-xl font-semibold">Séances enregistrées</h2>
       {currentStudies.length > 0 ? <ul className="space-y-3">{currentStudies.map(renderStudy)}</ul> : <p className="text-sm text-slate-600">Aucune séance encore planifiée ou terminée à afficher.</p>}

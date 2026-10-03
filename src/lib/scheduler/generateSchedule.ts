@@ -10,7 +10,7 @@ import { findAvailableSlots, type MinuteSlot } from "./findAvailableSlots";
 export type PlannerCourse = Course & { course_sessions: CourseSession[]; exams: Exam[] };
 export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string; id?: string; course_id?: string; source_course_session_id?: string | null; source_course_session_key?: string | null; source_course_date?: string | null; revision_stage?: number; revision_interval_days?: number | null; duration_minutes?: number; source_start_time?: string | null; source_end_time?: string | null; cancellation_reason?: string | null };
 export type CourseOccurrence = { course_id: string; source_course_session_key: string; source_course_date: string; source_start_time: string | null; source_end_time: string | null; is_obsolete: boolean };
-export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; occurrences?: CourseOccurrence[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; today?: string };
+export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; occurrences?: CourseOccurrence[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; maxDailyMinutes?: number; today?: string };
 export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; intervalDays: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
 export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "previous_unplaced";
 export type UnscheduledRevision = { courseId: string; courseDate: string; durationMinutes: number; stage?: number; reasonCode: UnscheduledReason; reason: string };
@@ -34,6 +34,8 @@ export function generateSchedule(input: ScheduleInput) {
   if (ce < cs || pe < ps || ce - cs > 365 || pe - ps > 90) throw new Error("Limite : 366 jours de cours et 91 jours de planification.");
   const breakMinutes = input.breakMinutes ?? 15;
   if (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 60) throw new Error("La pause doit être un entier entre 0 et 60 minutes.");
+  const maxDailyMinutes = input.maxDailyMinutes ?? 240;
+  if (!Number.isInteger(maxDailyMinutes) || maxDailyMinutes < 15 || maxDailyMinutes > 1440) throw new Error("Le maximum quotidien doit être un entier entre 15 et 1440 minutes.");
   const withBreak = (study: MinuteSlot): MinuteSlot => ({ start: study.start - breakMinutes, end: study.end + breakMinutes });
   const activeCourses = input.courses.filter((course) => !course.archived_at);
   const periods = new Map(activeCourses.map((course) => {
@@ -55,7 +57,13 @@ export function generateSchedule(input: ScheduleInput) {
     return study.scheduled_date < input.planningStart || study.scheduled_date > input.planningEnd;
   };
   const fixedStudies = input.existing.filter(isFixed);
+  const dailyMinutes = new Map<number, number>();
+  for (const study of fixedStudies) {
+    const d = day(study.scheduled_date);
+    dailyMinutes.set(d, (dailyMinutes.get(d) ?? 0) + (study.duration_minutes ?? sessionMinutes(study.start_time, study.end_time) ?? 0));
+  }
   const existingStudies = fixedStudies.map((s) => ({ day: day(s.scheduled_date), slot: withBreak(slot(s.start_time, s.end_time)) }));
+  const retainedOverLimitDays = [...dailyMinutes].filter(([d, minutes]) => d >= ps && d <= pe && minutes > maxDailyMinutes).map(([d]) => date(d));
   const free = new Map<number, MinuteSlot[]>();
   for (let d = ps; d <= pe; d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
@@ -164,6 +172,7 @@ export function generateSchedule(input: ScheduleInput) {
       if (later.stage <= task.stage || later.target > pe) continue;
       let found = false;
       for (let d = Math.max(last + 1, later.earliest); d <= later.latest; d++) {
+        if ((dailyMinutes.get(d) ?? 0) + later.durationMinutes > maxDailyMinutes) continue;
         let slots = free.get(d) ?? [];
         if (d === last + 1 && end + breakMinutes > 1440) slots = findAvailableSlots(slots, [{ start: 0, end: end + breakMinutes - 1440 }]);
         const available = slots.find((s) => s.end - s.start >= later.durationMinutes);
@@ -212,6 +221,7 @@ export function generateSchedule(input: ScheduleInput) {
     const maxLaterCount = series.get(key)!.filter((later) => later.stage > task.stage && later.target <= pe).length;
     let chosen: { day: number; start: number; end: number; laterCount: number } | undefined;
     for (const d of candidates) {
+      if ((dailyMinutes.get(d) ?? 0) + task.durationMinutes > maxDailyMinutes) continue;
       const slots = free.get(d)!;
       const available = slots.find((s) => s.end - s.start >= task.durationMinutes);
       if (!available) continue;
@@ -225,6 +235,7 @@ export function generateSchedule(input: ScheduleInput) {
     if (chosen) {
       const { day: d, start, end } = chosen;
       const slots = free.get(d)!;
+      dailyMinutes.set(d, (dailyMinutes.get(d) ?? 0) + task.durationMinutes);
       const occupied = withBreak({ start, end });
       free.set(d, findAvailableSlots(slots, [occupied]));
       if (occupied.start < 0 && free.has(d - 1)) free.set(d - 1, findAvailableSlots(free.get(d - 1)!, [{ start: 1440 + occupied.start, end: 1440 }]));
@@ -233,9 +244,9 @@ export function generateSchedule(input: ScheduleInput) {
       planned.push({ courseId: task.courseId, sourceId: task.sourceId, courseDate: task.courseDate, stage: task.stage, intervalDays: task.intervalDays, durationMinutes: task.durationMinutes, desiredDate: task.desiredDate, scheduledDate: date(d), startTime: time(start), endTime: time(end) });
     } else {
       const limit = task.examDate && day(task.examDate) - 1 <= pe ? `avant l’examen du ${task.examDate}` : `jusqu’à la fin du planning (${input.planningEnd})`;
-      fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min entre révisions, du ${date(earliest)} au ${date(latest)} (${limit}).`);
+      fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min et une limite de ${maxDailyMinutes} min de révision par jour, du ${date(earliest)} au ${date(latest)} (${limit}).`);
     }
   }
   planned.sort((a,b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime));
-  return { planned, unscheduled, excludedMinutes, occurrences };
+  return { planned, unscheduled, excludedMinutes, occurrences, retainedOverLimitDays };
 }
