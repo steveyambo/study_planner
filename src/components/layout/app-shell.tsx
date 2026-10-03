@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 
-export function AppShell({ children, fullName }: { children: ReactNode; fullName: string }) {
+export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: "dashboard" | "courses" }) {
   return (
     <div className="min-h-screen">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-4">
@@ -13,10 +13,11 @@ export function AppShell({ children, fullName }: { children: ReactNode; fullName
           <Link href="/" className="text-xl font-bold text-indigo-700">
             Study Planner
           </Link>
-          <nav aria-label="Navigation principale">
-            <Link href="/dashboard" aria-current="page" className="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">
+          <nav aria-label="Navigation principale" className="flex flex-wrap gap-2">
+            <Link href="/dashboard" aria-current={activePage === "dashboard" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">
               Tableau de bord
             </Link>
+            <Link href="/courses" aria-current={activePage === "courses" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">Mes cours</Link>
           </nav>
           <div className="flex flex-wrap items-center gap-3">
             {fullName && <p className="max-w-64 break-words text-sm text-slate-600">Bonjour {fullName}</p>}
