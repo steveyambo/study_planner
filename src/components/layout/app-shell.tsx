@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 
-export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: "dashboard" | "courses" | "exams" | "availability" | "settings" }) {
+export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: "dashboard" | "courses" | "exams" | "availability" | "settings" | "calendar" }) {
   return (
     <div className="min-h-screen">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-4">
@@ -14,6 +14,7 @@ export function AppShell({ children, fullName, activePage = "dashboard" }: { chi
             Study Planner
           </Link>
           <nav aria-label="Navigation principale" className="flex flex-wrap gap-2">
+            <Link href="/calendar" aria-current={activePage === "calendar" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">Planification</Link>
             <Link href="/dashboard" aria-current={activePage === "dashboard" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">
               Tableau de bord
             </Link>
