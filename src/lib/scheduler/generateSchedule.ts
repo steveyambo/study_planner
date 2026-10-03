@@ -9,7 +9,8 @@ import { findAvailableSlots, type MinuteSlot } from "./findAvailableSlots";
 
 export type PlannerCourse = Course & { course_sessions: CourseSession[]; exams: Exam[] };
 export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string; id?: string; course_id?: string; source_course_session_id?: string | null; source_course_session_key?: string | null; source_course_date?: string | null; revision_stage?: number; revision_interval_days?: number | null; duration_minutes?: number; source_start_time?: string | null; source_end_time?: string | null; cancellation_reason?: string | null };
-export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; today?: string };
+export type CourseOccurrence = { course_id: string; source_course_session_key: string; source_course_date: string; source_start_time: string | null; source_end_time: string | null; is_obsolete: boolean };
+export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; occurrences?: CourseOccurrence[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; today?: string };
 export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; intervalDays: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
 export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "previous_unplaced";
 export type UnscheduledRevision = { courseId: string; courseDate: string; durationMinutes: number; stage?: number; reasonCode: UnscheduledReason; reason: string };
@@ -69,6 +70,7 @@ export function generateSchedule(input: ScheduleInput) {
   const unscheduled: UnscheduledRevision[] = [];
   let excludedMinutes = 0, occurrences = 0;
   const historical = new Map<string, ExistingStudy[]>();
+  const trackedOccurrences = new Map((input.occurrences ?? []).filter((entry) => !entry.is_obsolete).map((entry) => [JSON.stringify([entry.course_id, entry.source_course_session_key, entry.source_course_date]), entry]));
   for (const study of input.existing) if (knownIdentity(study) && !(study.status === "cancelled" && study.cancellation_reason === "source_changed")) {
     const key = JSON.stringify([study.course_id, sourceKey(study), study.source_course_date]);
     const group = historical.get(key) ?? [];
@@ -77,12 +79,14 @@ export function generateSchedule(input: ScheduleInput) {
   for (let d = cs; d <= Math.min(ce, pe); d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
     for (const course of activeCourses) for (const source of course.course_sessions) {
-      const history = historical.get(JSON.stringify([course.id, source.id, date(d)])) ?? [];
+      const key = JSON.stringify([course.id, source.id, date(d)]);
+      const history = historical.get(key) ?? [];
+      const occurrence = trackedOccurrences.get(key);
       const currentOccurrence = source.day_of_week === weekday && (!source.effective_from || date(d) >= source.effective_from);
-      const historicalOccurrence = history.length > 0 && (!source.effective_from || date(d) < source.effective_from);
+      const historicalOccurrence = (!!occurrence || history.length > 0) && (!source.effective_from || date(d) < source.effective_from);
       if (!currentOccurrence && !historicalOccurrence) continue;
       occurrences++;
-      const snapshot = historicalOccurrence ? history.find((study) => study.source_start_time && study.source_end_time) : undefined;
+      const snapshot = historicalOccurrence ? occurrence ?? history.find((study) => study.source_start_time && study.source_end_time) : undefined;
       const minutes = calculateStudyTime(sessionMinutes(snapshot?.source_start_time ?? source.start_time, snapshot?.source_end_time ?? source.end_time) ?? 0, course.revision_multiplier);
       if (minutes === null) throw new Error("Charge de révision invalide.");
       const fixed = history.filter(isFixed);
@@ -105,7 +109,7 @@ export function generateSchedule(input: ScheduleInput) {
       for (const revision of generated.revisions) {
         const target = day(revision.scheduledDate);
         const stage = stages.find((entry) => entry.intervalDays === revision.intervalDays)!.stage;
-        const previouslyPending = history.some((study) => study.status === "planned" || study.status === "completed" || study.status === "missed" || study.cancellation_reason === "replanned");
+        const previouslyPending = !!occurrence || history.some((study) => study.status === "planned" || study.status === "completed" || study.status === "missed" || study.cancellation_reason === "replanned");
         if (target < ps && !input.includeOverdue && !previouslyPending) { excludedMinutes += revision.durationMinutes; continue; }
         const earlierFixed = fixed.filter((study) => study.revision_stage! < stage).map((study) => day(study.scheduled_date) + 1);
         const laterFixed = fixed.filter((study) => study.revision_stage! > stage).map((study) => day(study.scheduled_date) - 1);

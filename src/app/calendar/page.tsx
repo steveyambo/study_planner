@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/supabase/require-user";
-import { loadStudySessions } from "@/lib/supabase/load-study-sessions";
+import { loadCourseOccurrences, loadStudySessions } from "@/lib/supabase/load-study-sessions";
 import { AppShell } from "@/components/layout/app-shell";
 import { Planner, type PlanningPreferences } from "@/components/calendar/planner";
 import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
@@ -13,24 +13,25 @@ type SavedStudy = ExistingStudy & { id: string; course_code_snapshot?: string | 
 export const metadata = { title: "Planification | Study Planner" };
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
   const { supabase, userId } = await requireUser();
-  const [profile, courses, availability, rules, existing] = await Promise.all([
+  const [profile, courses, availability, rules, existing, occurrences] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("courses").select("*,course_sessions(*),exams(*)").eq("user_id", userId),
     supabase.from("availabilities").select("id,day_of_week,start_time,end_time").eq("user_id", userId),
     supabase.from("revision_rules").select("intervals").eq("user_id", userId).maybeSingle(),
     loadStudySessions(supabase, userId),
+    loadCourseOccurrences(supabase, userId),
   ]);
   if ([profile, courses, availability, rules].some((response) => response.error)) throw new Error("Impossible de charger les données de planification.");
   const { result } = await searchParams;
   const messages: Record<string, string> = {
-    saved: "Planning enregistré. Les séances futures de la période choisie ont été remplacées ; les séances terminées et l’historique sont conservés.",
-    migration: "Applique la migration 202610030002_replanning.sql dans Supabase, après les deux migrations précédentes, avant de sauvegarder.",
+    saved: "Planning enregistré. Les anciennes propositions ont été remplacées sans s’accumuler. Les séances terminées et manquées sont conservées.",
+    migration: "Applique la migration 202610030003_clean_schedule_history.sql dans Supabase, après les trois migrations précédentes, avant de sauvegarder.",
     changed: "Tes données ont changé depuis cet aperçu. Recalcule le planning avant de l’enregistrer.",
     invalid: "Choisis une période de planning à partir de demain.",
     conflict: "Enregistrement refusé : vérifie les horaires et recalcule l’aperçu. Aucune sauvegarde partielle n’a été effectuée.",
     failed: "Impossible d’enregistrer le planning. Vérifie les paramètres et réessaie.",
   };
-  const planningRevision = profile.data?.planning_revision == null ? null : String(profile.data.planning_revision);
+  const planningRevision = profile.data?.planning_revision == null || profile.data?.planning_history_version !== 1 || occurrences === null ? null : String(profile.data.planning_revision);
   const hasSavedPlanning = profile.data?.saved_planning_revision != null || !!existing.length;
   const isOutdated = hasSavedPlanning && planningRevision !== String(profile.data?.saved_planning_revision);
   const studies = existing as SavedStudy[];
@@ -51,12 +52,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <h1 className="text-3xl font-bold">Planification</h1>
     <p className="mt-3 text-slate-600">Réunis les séances de tous tes cours et calcule un planning dans tes disponibilités.</p>
     {result && Object.hasOwn(messages, result) && <p role="status" className="mt-5 rounded-lg bg-indigo-50 p-4 text-indigo-950">{messages[result]}</p>}
-    {planningRevision === null ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">La replanification nécessite la migration 202610030002_replanning.sql. Tu peux calculer un aperçu ; applique cette migration dans Supabase avant de l’enregistrer.</p> : isOutdated ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Planning à recalculer : tes cours, horaires, examens, disponibilités, paramètres ou séances ont changé depuis la dernière sauvegarde. Calcule un aperçu puis enregistre-le pour mettre à jour les révisions futures de la période choisie.</p> : hasSavedPlanning ? <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-950">Les données n’ont pas changé depuis la dernière sauvegarde{savedPeriodLabel}. Tu peux choisir une autre période ou recalculer le planning.</p> : null}
+    {planningRevision === null ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">La replanification nécessite la migration 202610030003_clean_schedule_history.sql. Tu peux calculer un aperçu ; applique cette migration dans Supabase avant de l’enregistrer.</p> : isOutdated ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Planning à recalculer : tes cours, horaires, examens, disponibilités, paramètres ou séances ont changé depuis la dernière sauvegarde. Calcule un aperçu puis enregistre-le pour mettre à jour les révisions futures de la période choisie.</p> : hasSavedPlanning ? <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-950">Les données n’ont pas changé depuis la dernière sauvegarde{savedPeriodLabel}. Tu peux choisir une autre période ou recalculer le planning.</p> : null}
     {outsideWindow > 0 && <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">{outsideWindow} révisions futures sont conservées hors de la dernière période mise à jour{savedPeriodLabel}. Vérifie leurs créneaux ou élargis la prochaine replanification après une modification des données.</p>}
     {!!studies.length && <section className="mt-8 space-y-3"><h2 className="text-xl font-semibold">Séances enregistrées</h2>
       {currentStudies.length > 0 ? <ul className="space-y-3">{currentStudies.map(renderStudy)}</ul> : <p className="text-sm text-slate-600">Aucune séance encore planifiée ou terminée à afficher.</p>}
       {historicalStudies.length > 0 && <details className="rounded-lg border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-medium text-indigo-700">Historique ({historicalStudies.length})</summary><p className="mt-3 text-sm text-slate-600">Séances manquées ou annulées, conservées pour le suivi.</p><ul className="mt-3 space-y-3">{historicalStudies.map(renderStudy)}</ul></details>}
     </section>}
-    <Planner today={today} planningRevision={planningRevision} defaults={preferences} data={{ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS }} />
+    <Planner today={today} planningRevision={planningRevision} defaults={preferences} data={{ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, occurrences: occurrences ?? [], intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS }} />
   </AppShell>;
 }

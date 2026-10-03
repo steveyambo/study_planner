@@ -4,7 +4,7 @@
 
 Dans **Supabase → SQL Editor**, exécuter `supabase/migrations/202610030002_replanning.sql` après les migrations `202610020001_initial_schema.sql` et `202610030001_save_schedule.sql`. La nouvelle migration ajoute l’archivage, les instantanés historiques, la version des données du planning et la fonction transactionnelle `replace_schedule`.
 
-Sans cette migration, la page affiche une explication et permet de calculer un aperçu, mais elle ne propose pas de sauvegarde. L’application ne lance jamais cette migration automatiquement sur le projet distant.
+La version actuelle nécessite aussi `202610030003_clean_schedule_history.sql`, après ces trois migrations. Elle nettoie les propositions annulées et conserve séparément les séances de cours d’origine. Les règles et l’installation sont décrites dans `clean-schedule-history.md`. Sans la nouvelle migration, l’aperçu reste disponible mais la sauvegarde est désactivée. L’application ne lance pas les migrations sur le projet distant.
 
 ## Après une modification
 
@@ -15,9 +15,9 @@ Les changements de cours, horaires, examens, disponibilités, intervalles et sui
 3. Vérifier les séances proposées et les révisions non placées.
 4. Cliquer sur **Remplacer ce planning**. La confirmation précise le nombre de révisions encore planifiées dans la fenêtre. L’enregistrement est explicite.
 
-La fenêtre comprend ses deux bornes. Seules les séances avec le statut `planned`, à partir de demain et dans cette fenêtre, sont remplacées. Les séances terminées, l’historique passé, les séances manquées et les séances en dehors de la fenêtre sont conservés. Les séances conservées encore planifiées ou terminées continuent à occuper leurs créneaux ; les révisions déjà terminées ne sont pas recréées.
+La fenêtre comprend ses deux bornes. Seules les séances avec le statut `planned`, à partir de demain et dans cette fenêtre, sont remplacées. Leurs anciennes propositions sont supprimées. Les séances terminées, les séances manquées et les séances en dehors de la fenêtre sont conservées. Les séances conservées encore planifiées ou terminées continuent à occuper leurs créneaux ; les révisions déjà terminées ne sont pas recréées. Une origine unique par séance de cours permet de retrouver le travail restant sans conserver toutes les générations du planning.
 
-Les anciennes lignes dont la séance d’origine ne peut pas être identifiée restent conservées. Le nombre affiché dans la confirmation ne les inclut pas. L’historique des séances manquées et annulées est replié dans **Historique**, pour ne pas empiler les anciennes générations dans la liste principale.
+Les anciennes lignes dont la séance d’origine ne peut pas être identifiée restent conservées. Le nombre affiché dans la confirmation ne les inclut pas. Les séances manquées et les annulations explicites restent dans **Historique** ; les propositions annulées par recalcul ou archivage n’y sont plus empilées.
 
 Le bandeau de sauvegarde précise la dernière fenêtre mise à jour. Des révisions futures peuvent rester en dehors de cette fenêtre ; un avertissement les signale même si la version des données est inchangée depuis la dernière sauvegarde. Après une modification, élargir la fenêtre si ces séances doivent également être replacées.
 
@@ -29,7 +29,7 @@ Un nouveau cours ou horaire participe à la prochaine simulation. Un nouvel hora
 
 Les changements d’horaires s’appliquent aux occurrences futures, y compris celles dont des révisions étaient déjà planifiées. Une ancienne occurrence future déplacée vers un autre jour ne génère plus de nouvelles révisions. Pour une séance d’origine antérieure au changement et possédant déjà des révisions enregistrées, la durée du cours conservée dans l’instantané sert à recalculer la charge restante ; modifier les horaires ne réécrit pas le passé. Les changements de multiplicateur et d’intervalles s’appliquent à la charge restante ; une replanification ne supprime pas le travail déjà effectué. Le numéro de répétition, la date de la séance d’origine et l’intervalle sauvegardé servent au rapprochement. Les révisions réalisées hors de l’application ne sont pas connues automatiquement : le rattrapage reste une décision explicite.
 
-Les anciennes prévisions retirées parce qu’un horaire futur a changé restent dans l’historique avec la raison `source_changed`. Elles ne deviennent pas des cours à rattraper lorsque leur date passe ou que l’horaire change à nouveau.
+Les anciennes prévisions retirées parce qu’un horaire futur a changé sont supprimées. Leur origine reste marquée obsolète, pour ne pas les transformer en cours à rattraper lorsque leur date passe ou que l’horaire change à nouveau.
 
 Si une révision a été terminée après des répétitions manquées, le travail restant est réparti en nouvelles répétitions complémentaires après les séances conservées. Leurs numéros prolongent la série historique : le moteur ne tente pas de placer une révision dans le passé avant une séance déjà terminée. Les minutes effectuées restent déduites.
 
@@ -37,7 +37,7 @@ Si une révision a été terminée après des répétitions manquées, le travai
 
 Le formulaire envoie les paramètres, une copie du résultat affiché et la version des données ayant servi à l’aperçu. Le serveur recharge les données du compte connecté et recalcule les lignes. Il compare la copie et la version : des données modifiées entre l’aperçu et le clic imposent un nouveau calcul, même si le résultat visible serait identique.
 
-La page et la route chargent toutes les séances du compte par pages, dans un ordre stable (date, heure, identifiant), jusqu’à une page vide. Elles ne supposent pas que le plafond PostgREST est fixé à 1 000 lignes. Ainsi, plusieurs générations conservées dans l’historique ne masquent pas des révisions récemment terminées. L’échec d’une page arrête le chargement et empêche toute sauvegarde basée sur un historique incomplet.
+La page et la route chargent toutes les révisions et origines du compte par pages, dans un ordre stable, jusqu’à une page vide. Elles ne supposent pas que le plafond PostgREST est fixé à 1 000 lignes. L’échec d’une page arrête le chargement et empêche toute sauvegarde basée sur un suivi incomplet.
 
 La fonction SQL `replace_schedule` vérifie à nouveau la version sous verrou du compte, puis remplace et insère dans une transaction. Un conflit annule toute l’opération. La copie fournie par le navigateur n’est jamais utilisée directement comme liste de lignes à insérer. L’origine HTTP, le compte, les sources, les pauses, les limites et les conflits restent contrôlés.
 

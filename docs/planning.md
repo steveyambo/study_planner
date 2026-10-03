@@ -1,6 +1,6 @@
 # Étape 16 — Moteur de planification
 
-Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md` et la mise à jour d’un planning existant dans `replanning.md` ; les trois migrations sont nécessaires.
+Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles, origines et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md`, la mise à jour dans `replanning.md` et le nettoyage des propositions dans `clean-schedule-history.md` ; les quatre migrations sont nécessaires.
 
 ## Utilisation
 

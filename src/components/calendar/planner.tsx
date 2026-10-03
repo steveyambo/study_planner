@@ -9,7 +9,7 @@ export type PlanningPreferences = { courseStart?: string; courseEnd?: string; pl
 const addDays = (value: string, count: number) => new Date(Date.parse(`${value}T00:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
 const validDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 
-export function Planner({ data, today, planningRevision, defaults }: { data: Pick<ScheduleInput, "courses" | "availability" | "existing" | "intervals">; today: string; planningRevision: string | null; defaults?: PlanningPreferences | null }) {
+export function Planner({ data, today, planningRevision, defaults }: { data: Pick<ScheduleInput, "courses" | "availability" | "existing" | "intervals" | "occurrences">; today: string; planningRevision: string | null; defaults?: PlanningPreferences | null }) {
   const [result, setResult] = useState<ReturnType<typeof generateSchedule> | null>(null);
   const [error, setError] = useState("");
   const [saveFields, setSaveFields] = useState<Record<string, string> | null>(null);
@@ -49,6 +49,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
       </div>
       <label className="flex items-start gap-3 text-sm leading-6"><input name="includeOverdue" type="checkbox" defaultChecked={defaults?.includeOverdue === true} className="mt-1" /><span>Inclure les révisions déjà échues comme restant à faire. Coche seulement si tu veux simuler leur rattrapage : l’application ne connaît pas encore les révisions que tu as faites en dehors d’elle.</span></label>
       <p className="text-sm leading-6 text-slate-600">Les révisions terminées sont déduites de la charge restante. Le calcul remplace les révisions encore planifiées dans la période choisie et réserve les séances conservées en dehors de cette période. Les cours archivés et les horaires supprimés ne génèrent plus de nouvelles révisions.</p>
+      <p className="text-sm leading-6 text-slate-600">À l’enregistrement, les anciennes propositions remplacées sont supprimées. Les révisions terminées et manquées restent dans le suivi ; les séances de cours d’origine restent connues pour le rattrapage.</p>
       <button className="rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700">Calculer l’aperçu</button>
     </form>
     {error && <p role="alert" className="mt-5 text-red-700">{error}</p>}

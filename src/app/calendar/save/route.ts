@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
-import { loadStudySessions } from "@/lib/supabase/load-study-sessions";
+import { loadCourseOccurrences, loadStudySessions } from "@/lib/supabase/load-study-sessions";
 import { generateSchedule, type PlannerCourse } from "@/lib/scheduler/generateSchedule";
 import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
 import { todayInTimezone } from "@/lib/utils/calendar-date";
@@ -12,19 +12,20 @@ export async function POST(request: NextRequest) {
   let result = "failed";
   try {
     const fields = await request.formData();
-    const [profile, courses, availability, rules, existing] = await Promise.all([
+    const [profile, courses, availability, rules, existing, occurrences] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase.from("courses").select("*,course_sessions(*),exams(*)").eq("user_id", userId),
       supabase.from("availabilities").select("id,day_of_week,start_time,end_time").eq("user_id", userId),
       supabase.from("revision_rules").select("intervals").eq("user_id", userId).maybeSingle(),
       loadStudySessions(supabase, userId),
+      loadCourseOccurrences(supabase, userId),
     ]);
     if ([profile, courses, availability, rules].some((r) => r.error)) throw new Error("read_failed");
     const planningStart = String(fields.get("planningStart") ?? "");
     const today = todayInTimezone(profile.data?.timezone ?? "America/New_York");
     const revision = profile.data?.planning_revision;
     const expectedRevision = String(fields.get("expectedRevision") ?? "");
-    if (revision === undefined || revision === null) result = "migration";
+    if (revision === undefined || revision === null || profile.data?.planning_history_version !== 1 || occurrences === null) result = "migration";
     else if (!/^\d+$/.test(expectedRevision) || expectedRevision !== String(revision)) result = "changed";
     else if (planningStart <= today) result = "invalid";
     else {
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       const breakMinutes = Number(fields.get("breakMinutes"));
       const planningEnd = String(fields.get("planningEnd") ?? "");
       const includeOverdue = fields.get("includeOverdue") === "on";
-      const schedule = generateSchedule({ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS,
+      const schedule = generateSchedule({ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, occurrences, intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS,
         today, courseStart, courseEnd, planningStart, planningEnd, includeOverdue, breakMinutes });
       if (String(fields.get("preview") ?? "") !== JSON.stringify(schedule.planned)) result = "changed";
       else {

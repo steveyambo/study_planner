@@ -12,9 +12,9 @@ function loadModule(path, dependencies = {}) {
   vm.runInNewContext(code,{exports,require:(name)=>dependencies[name],URL});
   return exports;
 }
-function setup({ existing = [], planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
+function setup({ existing = [], occurrences = [], historyVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {
   const writes = [], filters = [], inputs = [], ranges = [], orders = [];
-  const data = { profiles: { timezone: "America/New_York", planning_revision: revision }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing };
+  const data = { profiles: { timezone: "America/New_York", planning_revision: revision, planning_history_version: historyVersion }, courses: [], availabilities: [], revision_rules: { intervals: [1,3,7,14] }, study_sessions: existing, course_occurrences: occurrences };
   const supabase = {
     from(table) {
       let from = 0, to = Infinity;
@@ -25,7 +25,8 @@ function setup({ existing = [], planned = proposed, revision = 7, rpcError = nul
         range: (start,end) => { from=start;to=end;ranges.push({table,from,to});return query; },
         maybeSingle: async () => ({data:data[table],error:null}),
         then: (resolve) => {
-          const response = table === "study_sessions" ? from === pageErrorAt ? {data:null,error:{message:"page_failed"}} : {data:existing.slice(from, Math.min(to + 1, from + pageLimit)),error:null} : {data:data[table],error:null};
+          const rows = table === "study_sessions" ? existing : occurrences;
+          const response = table === "course_occurrences" && occurrenceError ? {data:null,error:occurrenceError} : table === "study_sessions" || table === "course_occurrences" ? from === pageErrorAt ? {data:null,error:{message:"page_failed"}} : {data:rows.slice(from, Math.min(to + 1, from + pageLimit)),error:null} : {data:data[table],error:null};
           return Promise.resolve(response).then(resolve);
         },
       };
@@ -115,8 +116,8 @@ test("all history beyond 1000 rows including recent completed work reaches the e
   assert.match(response.headers.get("location"),/result=saved/);
   assert.equal(context.inputs[0].existing.length,1101);
   assert.equal(context.inputs[0].existing.at(-1).id,"recent-completed");
-  assert.equal(context.ranges.length,3);
-  assert.deepEqual(context.ranges.map((range)=>range.from),[0,1000,1101]);
+  assert.equal(context.ranges.filter((range)=>range.table==="study_sessions").length,3);
+  assert.deepEqual(context.ranges.filter((range)=>range.table==="study_sessions").map((range)=>range.from),[0,1000,1101]);
   assert.deepEqual(context.orders.slice(0,3).map((order)=>order.column),["scheduled_date","start_time","id"]);
   assert.ok(context.filters.every((filter)=>filter.value==="actual-account"));
 });
@@ -126,7 +127,7 @@ test("a configured smaller row limit is paginated until an empty page",async()=>
   const context=setup({existing,pageLimit:250});const response=await context.POST(request());
   assert.match(response.headers.get("location"),/result=saved/);
   assert.equal(context.inputs[0].existing.length,650);
-  assert.deepEqual(context.ranges.map((range)=>range.from),[0,250,500,650]);
+  assert.deepEqual(context.ranges.filter((range)=>range.table==="study_sessions").map((range)=>range.from),[0,250,500,650]);
 });
 
 test("a later failed history page prevents computing and saving a partial history",async()=>{
@@ -134,4 +135,30 @@ test("a later failed history page prevents computing and saving a partial histor
   const context=setup({existing,pageErrorAt:1000});const response=await context.POST(request());
   assert.match(response.headers.get("location"),/result=failed/);
   assert.equal(context.writes.length,0);assert.equal(context.inputs.length,0);
+});
+
+test("durable origins reach the engine without cancelled proposals",async()=>{
+  const occurrences=[{course_id:"own-course",source_course_session_key:"own-source",source_course_date:"2026-09-14",source_start_time:"18:00",source_end_time:"21:00",is_obsolete:false}];
+  const context=setup({occurrences});const response=await context.POST(request());
+  assert.match(response.headers.get("location"),/result=saved/);assert.equal(context.inputs[0].occurrences[0],occurrences[0]);
+  assert.equal(context.inputs[0].existing.length,0);
+});
+
+test("the old replanning schema cannot save without the cleanup migration",async()=>{
+  for (const options of [{historyVersion:null},{occurrenceError:{code:"PGRST205"}}]) {
+    const context=setup(options);const response=await context.POST(request());
+    assert.match(response.headers.get("location"),/result=migration/);assert.equal(context.writes.length,0);assert.equal(context.inputs.length,0);
+  }
+});
+
+test("all durable origins are paginated before generating the schedule",async()=>{
+  const occurrences=Array.from({length:1101},(_,index)=>({id:String(index),source_course_date:"2026-09-14",is_obsolete:false}));
+  const context=setup({occurrences});const response=await context.POST(request());
+  assert.match(response.headers.get("location"),/result=saved/);assert.equal(context.inputs[0].occurrences.length,1101);
+  assert.deepEqual(context.ranges.filter((range)=>range.table==="course_occurrences").map((range)=>range.from),[0,1000,1101]);
+});
+
+test("an origin read failure prevents saving incomplete remaining work",async()=>{
+  const context=setup({occurrenceError:{code:"XX000",message:"read_failed"}});const response=await context.POST(request());
+  assert.match(response.headers.get("location"),/result=failed/);assert.equal(context.writes.length,0);assert.equal(context.inputs.length,0);
 });

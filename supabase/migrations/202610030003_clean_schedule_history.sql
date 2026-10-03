@@ -1,0 +1,233 @@
+-- Executer une fois apres 202610030002_replanning.sql.
+-- Une origine par cours suivi ; les propositions remplacees ne sont pas un historique realise.
+begin;
+
+alter table public.profiles add column planning_history_version smallint not null default 1;
+create table public.course_occurrences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  course_id uuid not null,
+  source_course_session_key uuid not null,
+  source_course_date date not null,
+  source_start_time time,
+  source_end_time time,
+  course_code_snapshot text,
+  course_name_snapshot text,
+  is_obsolete boolean not null default false,
+  created_at timestamptz not null default now(),
+  foreign key (course_id, user_id) references public.courses(id, user_id) on delete cascade,
+  unique (user_id, source_course_session_key, source_course_date),
+  check (source_start_time is null or source_end_time is null or source_end_time > source_start_time)
+);
+alter table public.course_occurrences enable row level security;
+create policy own_course_occurrences on public.course_occurrences for all to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+revoke all on public.course_occurrences from public, anon;
+grant select, insert, update, delete on public.course_occurrences to authenticated;
+
+-- Recuperer les origines avant de nettoyer les anciennes generations.
+insert into public.course_occurrences(user_id, course_id, source_course_session_key, source_course_date,
+  source_start_time, source_end_time, course_code_snapshot, course_name_snapshot, is_obsolete, created_at)
+select distinct on (s.user_id, s.source_course_session_key, s.source_course_date)
+  s.user_id, s.course_id, s.source_course_session_key, s.source_course_date,
+  s.source_start_time, s.source_end_time, s.course_code_snapshot, s.course_name_snapshot,
+  not exists(select 1 from public.study_sessions h where h.user_id = s.user_id
+    and h.source_course_session_key = s.source_course_session_key and h.source_course_date = s.source_course_date
+    and (h.status <> 'cancelled' or h.cancellation_reason is distinct from 'source_changed')),
+  s.created_at
+from public.study_sessions s where s.source_course_session_key is not null and s.source_course_date is not null
+order by s.user_id, s.source_course_session_key, s.source_course_date,
+  (s.status = 'cancelled' and s.cancellation_reason = 'source_changed') asc nulls first,
+  s.created_at, s.id;
+
+create trigger course_occurrences_planning_dirty after insert or update or delete on public.course_occurrences
+  for each row execute function public.mark_planning_dirty();
+
+-- Les origines survivent meme a une sauvegarde vide, sans garder les anciens creneaux.
+create function public.capture_course_occurrence()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+declare
+  source_key uuid := coalesce(new.source_course_session_key, new.source_course_session_id);
+  source record;
+  obsolete boolean;
+begin
+  if source_key is null or new.source_course_date is null then return null; end if;
+  select s.start_time, s.end_time, s.effective_from, c.code, c.name into source
+    from public.courses c left join public.course_sessions s on s.id = source_key and s.course_id = c.id
+    where c.id = new.course_id and c.user_id = new.user_id;
+  -- Lors de la suppression du compte, le cours parent peut deja etre supprime en cascade.
+  if not found then return null; end if;
+  obsolete := coalesce(new.status = 'cancelled' and new.cancellation_reason = 'source_changed', false)
+    and not exists(select 1 from public.study_sessions h where h.user_id = new.user_id
+      and h.source_course_session_key = source_key and h.source_course_date = new.source_course_date
+      and h.status in ('completed', 'missed'));
+  insert into public.course_occurrences as stored(user_id, course_id, source_course_session_key, source_course_date,
+    source_start_time, source_end_time, course_code_snapshot, course_name_snapshot, is_obsolete, created_at)
+  values(new.user_id, new.course_id, source_key, new.source_course_date,
+    coalesce(new.source_start_time, source.start_time), coalesce(new.source_end_time, source.end_time),
+    coalesce(new.course_code_snapshot, source.code), coalesce(new.course_name_snapshot, source.name), obsolete, new.created_at)
+  on conflict (user_id, source_course_session_key, source_course_date) do update set
+    source_start_time = case when (new.status in ('planned','completed','missed') and stored.is_obsolete)
+      or (new.status = 'planned' and source.effective_from is not null and new.source_course_date >= source.effective_from)
+      then excluded.source_start_time else coalesce(stored.source_start_time, excluded.source_start_time) end,
+    source_end_time = case when (new.status in ('planned','completed','missed') and stored.is_obsolete)
+      or (new.status = 'planned' and source.effective_from is not null and new.source_course_date >= source.effective_from)
+      then excluded.source_end_time else coalesce(stored.source_end_time, excluded.source_end_time) end,
+    is_obsolete = case when new.status in ('planned','completed','missed') then false
+      when new.cancellation_reason = 'source_changed' then obsolete else stored.is_obsolete end;
+  return null;
+end;
+$$;
+revoke all on function public.capture_course_occurrence() from public, anon, authenticated;
+create trigger study_sessions_capture_occurrence after insert or update on public.study_sessions
+  for each row execute function public.capture_course_occurrence();
+
+create function public.remove_replaced_proposal()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.status = 'cancelled' and new.completed_at is null
+    and new.source_course_session_key is not null and new.source_course_date is not null
+    and new.cancellation_reason in ('replanned','source_changed','course_archived') then
+    delete from public.study_sessions where id = new.id;
+  end if;
+  return null;
+end;
+$$;
+revoke all on function public.remove_replaced_proposal() from public, anon, authenticated;
+-- Ordre alphabetique : conserver l'origine avant de supprimer la proposition.
+create trigger study_sessions_remove_proposal after insert or update on public.study_sessions
+  for each row execute function public.remove_replaced_proposal();
+
+delete from public.study_sessions where status = 'cancelled' and completed_at is null
+  and source_course_session_key is not null and source_course_date is not null
+  and cancellation_reason in ('replanned','source_changed','course_archived');
+
+create or replace function public.replace_schedule(
+  p_sessions jsonb, p_break_minutes integer, p_course_start date, p_course_end date,
+  p_planning_start date, p_planning_end date, p_expected_revision bigint, p_include_overdue boolean
+)
+returns integer language plpgsql security invoker set search_path = '' as $$
+declare
+  account_id uuid := auth.uid();
+  today date;
+  revision bigint;
+  item record;
+  source record;
+  rules integer[];
+  count_saved integer := 0;
+begin
+  if account_id is null then raise exception 'authentication_required'; end if;
+  select (now() at time zone timezone)::date, planning_revision into today, revision
+    from public.profiles where id = account_id for update;
+  if not found then raise exception 'profile_missing'; end if;
+  if p_expected_revision is null or p_expected_revision <> revision then raise exception 'stale_revision'; end if;
+  if p_sessions is null or jsonb_typeof(p_sessions) <> 'array' then raise exception 'invalid_schedule'; end if;
+  if jsonb_array_length(p_sessions) > 5000 or p_break_minutes is null or p_break_minutes not between 0 and 60
+    or p_course_start is null or p_course_end is null or p_course_end < p_course_start or p_course_end - p_course_start > 365
+    or p_planning_start is null or p_planning_end is null or p_planning_start <= today
+    or p_planning_end < p_planning_start or p_planning_end - p_planning_start > 90
+    or p_include_overdue is null then raise exception 'invalid_schedule'; end if;
+  select array(select unnest(intervals) order by 1) into rules from public.revision_rules where user_id = account_id;
+  if not found then raise exception 'revision_rules_missing'; end if;
+
+  update public.study_sessions set status = 'missed'
+    where user_id = account_id and status = 'planned' and scheduled_date < today;
+  -- Conserver les tombstones des anciennes occurrences futures invalidees, meme sans revisions.
+  update public.course_occurrences o set is_obsolete = true
+    where o.user_id = account_id and not o.is_obsolete
+      and exists(select 1 from public.course_sessions s where s.id = o.source_course_session_key
+        and s.effective_from is not null and o.source_course_date >= s.effective_from
+        and (s.day_of_week <> extract(isodow from o.source_course_date)
+          or (o.source_start_time is not null and o.source_start_time <> s.start_time)
+          or (o.source_end_time is not null and o.source_end_time <> s.end_time)))
+      and not exists(select 1 from public.study_sessions h where h.user_id = account_id
+        and h.source_course_session_key = o.source_course_session_key and h.source_course_date = o.source_course_date
+        and h.status in ('completed','missed'));
+  update public.study_sessions h set status = 'cancelled', cancellation_reason = case when
+      exists(select 1 from public.course_sessions s join public.courses c on c.id = s.course_id
+        where s.id = h.source_course_session_key and c.archived_at is null and c.user_id = account_id
+          and s.effective_from is not null and h.source_course_date >= s.effective_from
+          and (s.day_of_week <> extract(isodow from h.source_course_date)
+            or (h.source_start_time is not null and h.source_start_time <> s.start_time)
+            or (h.source_end_time is not null and h.source_end_time <> s.end_time)))
+      then 'source_changed' else 'replanned' end
+    where h.user_id = account_id and h.status = 'planned' and h.scheduled_date between p_planning_start and p_planning_end
+      and h.source_course_session_key is not null and h.source_course_date is not null;
+  update public.study_sessions s set status = 'cancelled', cancellation_reason = 'course_archived'
+    where s.user_id = account_id and s.status = 'planned' and s.scheduled_date >= today
+      and exists(select 1 from public.courses c where c.id = s.course_id and c.archived_at is not null);
+
+  for item in select * from jsonb_to_recordset(p_sessions) as r(
+    course_id uuid, source_course_session_id uuid, source_course_date date,
+    scheduled_date date, start_time time, end_time time, duration_minutes integer,
+    revision_stage integer, revision_interval_days integer
+  ) order by scheduled_date, start_time, revision_stage loop
+    if item.course_id is null or item.source_course_session_id is null or item.source_course_date is null
+      or item.scheduled_date is null or item.start_time is null or item.end_time is null
+      or item.duration_minutes is null or item.revision_stage is null or item.revision_interval_days is null
+      or item.scheduled_date not between p_planning_start and p_planning_end
+      or item.scheduled_date <= item.source_course_date or item.source_course_date not between p_course_start and p_course_end
+      or item.duration_minutes <= 0 or item.end_time <= item.start_time
+      or extract(epoch from (item.end_time - item.start_time)) <> item.duration_minutes * 60
+      or item.revision_stage < 1 or item.revision_interval_days <= 0
+      or not (item.revision_interval_days = any(rules)) then raise exception 'invalid_schedule'; end if;
+    select coalesce(history.source_start_time, s.start_time) as start_time,
+      coalesce(history.source_end_time, s.end_time) as end_time, c.code, c.name into source
+      from public.course_sessions s join public.courses c on c.id = s.course_id
+      left join lateral (select o.source_start_time, o.source_end_time from public.course_occurrences o
+        where o.user_id = account_id and o.source_course_session_key = s.id
+          and o.source_course_date = item.source_course_date and not o.is_obsolete
+          and (s.effective_from is null or item.source_course_date < s.effective_from)) history on true
+      where s.id = item.source_course_session_id and c.id = item.course_id and c.user_id = account_id
+        and c.archived_at is null and ((s.day_of_week = extract(isodow from item.source_course_date)
+          and (s.effective_from is null or item.source_course_date >= s.effective_from))
+          or ((s.effective_from is null or item.source_course_date < s.effective_from)
+            and exists(select 1 from public.course_occurrences o where o.user_id = account_id
+              and o.source_course_session_key = s.id and o.source_course_date = item.source_course_date and not o.is_obsolete)));
+    if not found then raise exception 'invalid_source'; end if;
+    if not coalesce((select range_agg(tsrange(item.scheduled_date + a.start_time, item.scheduled_date + a.end_time, '[)'))
+      @> tsrange(item.scheduled_date + item.start_time, item.scheduled_date + item.end_time, '[)')
+      from public.availabilities a where a.user_id = account_id and a.day_of_week = extract(isodow from item.scheduled_date)), false)
+      then raise exception 'schedule_conflict'; end if;
+    if exists(select 1 from public.course_sessions s join public.courses c on c.id = s.course_id
+      where c.user_id = account_id and c.archived_at is null and item.scheduled_date between p_course_start and p_course_end
+        and (s.effective_from is null or item.scheduled_date >= s.effective_from)
+        and s.day_of_week = extract(isodow from item.scheduled_date)
+        and s.start_time < item.end_time and s.end_time > item.start_time) then raise exception 'schedule_conflict'; end if;
+    if exists(select 1 from public.exams e join public.courses c on c.id = e.course_id
+      where c.user_id = account_id and c.archived_at is null and e.exam_date = item.scheduled_date
+        and e.start_time < item.end_time and e.end_time > item.start_time) then raise exception 'schedule_conflict'; end if;
+    if exists(select 1 from public.exams e where e.course_id = item.course_id
+      and e.exam_date >= item.source_course_date and e.exam_date <= item.scheduled_date) then raise exception 'schedule_conflict'; end if;
+    if exists(select 1 from public.study_sessions s where s.user_id = account_id and s.status in ('planned','completed')
+      and (s.scheduled_date + s.start_time) < (item.scheduled_date + item.end_time) + make_interval(mins => p_break_minutes)
+      and (s.scheduled_date + s.end_time) + make_interval(mins => p_break_minutes) > (item.scheduled_date + item.start_time))
+      then raise exception 'schedule_conflict'; end if;
+    if exists(select 1 from public.study_sessions s where s.user_id = account_id
+      and s.source_course_session_key = item.source_course_session_id and s.source_course_date = item.source_course_date
+      and s.status in ('planned','completed')
+      and (s.revision_stage = item.revision_stage
+        or (s.revision_stage < item.revision_stage and s.scheduled_date >= item.scheduled_date)
+        or (s.revision_stage > item.revision_stage and s.scheduled_date <= item.scheduled_date)))
+      then raise exception 'invalid_revision_order'; end if;
+    insert into public.study_sessions(user_id, course_id, source_course_session_id, source_course_session_key,
+      source_course_date, course_code_snapshot, course_name_snapshot, source_start_time, source_end_time,
+      scheduled_date, start_time, end_time, duration_minutes, revision_stage, revision_interval_days, status)
+    values(account_id, item.course_id, item.source_course_session_id, item.source_course_session_id,
+      item.source_course_date, source.code, source.name, source.start_time, source.end_time,
+      item.scheduled_date, item.start_time, item.end_time, item.duration_minutes, item.revision_stage,
+      item.revision_interval_days, 'planned');
+    count_saved := count_saved + 1;
+  end loop;
+  update public.profiles set saved_planning_revision = planning_revision,
+    planning_preferences = jsonb_build_object('courseStart', p_course_start, 'courseEnd', p_course_end,
+      'planningStart', p_planning_start, 'planningEnd', p_planning_end,
+      'breakMinutes', p_break_minutes, 'includeOverdue', p_include_overdue)
+    where id = account_id;
+  return count_saved;
+end;
+$$;
+revoke all on function public.replace_schedule(jsonb, integer, date, date, date, date, bigint, boolean) from public, anon;
+grant execute on function public.replace_schedule(jsonb, integer, date, date, date, date, bigint, boolean) to authenticated;
+
+commit;

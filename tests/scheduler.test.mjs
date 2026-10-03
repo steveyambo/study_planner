@@ -282,3 +282,31 @@ test("fixed future session outside window keeps its identity and deducted minute
   input.existing=[savedStudy({revision_stage:4,revision_interval_days:14,scheduled_date:"2026-09-28"})];
   const result=generateSchedule(input);assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);assert.ok(result.planned.every(r=>r.stage<4));
 });
+
+function trackedOccurrence(overrides={}) {
+  return {course_id:"a",source_course_session_key:"s",source_course_date:"2026-09-14",source_start_time:"18:00",source_end_time:"21:00",is_obsolete:false,...overrides};
+}
+test("removing all replaced proposals does not forget pending work after an empty save",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.occurrences=[trackedOccurrence()];input.existing=[];
+  const result=generateSchedule(input);assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),360);
+  assert.equal(result.unscheduled.length,0);assert.equal(result.excludedMinutes,0);
+});
+test("completed repetitions are deducted with durable origins and no cancelled history",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.occurrences=[trackedOccurrence()];input.existing=[savedStudy({status:"completed"})];
+  const result=generateSchedule(input);assert.deepEqual(Array.from(result.planned,r=>r.stage),[2,3,4]);
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),270);
+});
+test("the durable origin preserves original course duration after its template changes",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.courses[0].course_sessions[0]={...input.courses[0].course_sessions[0],day_of_week:4,start_time:"10:00",end_time:"11:00",effective_from:"2026-10-03"};
+  input.occurrences=[trackedOccurrence()];input.existing=[];
+  const result=generateSchedule(input);assert.equal(result.occurrences,1);assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0),360);
+});
+test("an obsolete durable origin does not invent a past course after proposals are removed",()=>{
+  const input=fixture();input.courseEnd=input.courseStart;input.today="2026-10-03";input.planningStart="2026-10-04";input.planningEnd="2026-10-31";
+  input.courses[0].course_sessions[0].effective_from="2026-10-03";
+  input.occurrences=[trackedOccurrence({is_obsolete:true})];input.existing=[];
+  const result=generateSchedule(input);assert.equal(result.occurrences,0);assert.equal(result.planned.length,0);
+});

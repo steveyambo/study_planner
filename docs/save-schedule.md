@@ -6,7 +6,8 @@
 2. Copier tout `supabase/migrations/202610030001_save_schedule.sql` et exécuter la requête une seule fois.
 3. Recharger Study Planner. Cette migration ajoute la date du cours d’origine, une protection des identités de répétition et la fonction transactionnelle de sauvegarde. Elle conserve les tables et les séances existantes.
 
-4. Pour la version actuelle de l’application, exécuter ensuite `supabase/migrations/202610030002_replanning.sql`. La replanification et la conservation de l’historique sont décrites dans `replanning.md`. Sans cette troisième migration, la sauvegarde est désactivée dans l’interface actuelle.
+4. Exécuter ensuite `supabase/migrations/202610030002_replanning.sql`. La replanification est décrite dans `replanning.md`.
+5. Pour la version actuelle, exécuter `supabase/migrations/202610030003_clean_schedule_history.sql`. Elle retire les propositions remplacées sans perdre leur origine ni le travail effectué ; voir `clean-schedule-history.md`. Sans cette quatrième migration, la sauvegarde est désactivée.
 
 La migration a été compilée et testée dans PostgreSQL local. Elle n’a pas été exécutée sur le projet Supabase distant par l’agent.
 
@@ -16,7 +17,7 @@ Calculer un aperçu dans **Planification**, puis cliquer sur **Enregistrer ce pl
 
 Le formulaire envoie les paramètres et une copie de l’aperçu. Le serveur recharge les données du compte connecté et recalcule le planning. Les lignes fournies par le navigateur ne sont jamais insérées : la copie sert uniquement à détecter un aperçu devenu obsolète. Si le résultat change, il faut recalculer avant de sauvegarder.
 
-L’opération SQL actuelle utilise `replace_schedule`, la session authentifiée et les politiques RLS. Elle verrouille le profil pour sérialiser les appels par compte, impose le propriétaire, vérifie les sources, les disponibilités, les conflits, les pauses (y compris autour de minuit), les limites d’examen et l’ordre des répétitions. Si une ligne échoue, toute l’opération est annulée. L’index unique protège une identité d’occurrence/répétition avec le statut `planned` ou `completed` ; les lignes manquées ou annulées restent dans l’historique sans empêcher un nouveau placement.
+L’opération SQL actuelle utilise `replace_schedule`, la session authentifiée et les politiques RLS. Elle verrouille le profil pour sérialiser les appels par compte, impose le propriétaire, vérifie les sources, les disponibilités, les conflits, les pauses (y compris autour de minuit), les limites d’examen et l’ordre des répétitions. Si une ligne échoue, toute l’opération est annulée, y compris la suppression des propositions remplacées. L’index unique protège une identité d’occurrence/répétition avec le statut `planned` ou `completed` ; les lignes manquées ne bloquent pas un nouveau placement.
 
 ## Limites de cette version
 
