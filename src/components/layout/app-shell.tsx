@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 
-export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: "dashboard" | "courses" | "exams" }) {
+export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: "dashboard" | "courses" | "exams" | "availability" }) {
   return (
     <div className="min-h-screen">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:block focus:p-4">
@@ -19,6 +19,7 @@ export function AppShell({ children, fullName, activePage = "dashboard" }: { chi
             </Link>
             <Link href="/courses" aria-current={activePage === "courses" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">Mes cours</Link>
             <Link href="/exams" aria-current={activePage === "exams" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">Examens</Link>
+            <Link href="/availability" aria-current={activePage === "availability" ? "page" : undefined} className="rounded-lg px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 aria-[current=page]:bg-indigo-50">Disponibilités</Link>
           </nav>
           <div className="flex flex-wrap items-center gap-3">
             {fullName && <p className="max-w-64 break-words text-sm text-slate-600">Bonjour {fullName}</p>}
