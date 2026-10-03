@@ -9,7 +9,7 @@ Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, dis
 3. Pour rattraper les cours passés, cocher **Inclure les révisions déjà échues** uniquement si ces révisions restent à faire. Sinon leurs minutes sont exclues et affichées séparément, sans être considérées comme terminées.
 4. Cliquer sur **Calculer l’aperçu**. Lire les créneaux proposés et les charges non placées.
 
-Maximum : 366 jours de cours et 91 jours de planning. La fin des cours doit être au plus tard la fin du planning. Les dates et horaires sont validés.
+Maximum : 366 jours de cours et 91 jours de planning. La fin des cours peut dépasser la fin du planning : seules les occurrences jusqu’à la fin du planning sont calculées. Les dates et horaires sont validés.
 
 ## Placement
 

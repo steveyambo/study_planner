@@ -51,3 +51,9 @@ test("invalid and excessive periods are rejected", () => {
   assert.throws(()=>generateSchedule({...fixture(),courseStart:"2026-02-30"}));
   assert.throws(()=>generateSchedule({...fixture(),planningEnd:"2027-10-15"}));
 });
+test("semester may end after planning without generating later occurrences", () => {
+  const input = fixture(); input.courseEnd = "2026-12-31";
+  const result = generateSchedule(input);
+  assert.equal(result.occurrences, 5);
+  assert.ok(result.planned.every((revision) => revision.courseDate <= input.planningEnd && revision.scheduledDate <= input.planningEnd));
+});

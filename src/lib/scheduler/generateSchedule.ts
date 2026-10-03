@@ -28,7 +28,7 @@ function slot(start: string, end: string): MinuteSlot {
 
 export function generateSchedule(input: ScheduleInput) {
   const cs = day(input.courseStart), ce = day(input.courseEnd), ps = day(input.planningStart), pe = day(input.planningEnd);
-  if (ce < cs || pe < ps || ce - cs > 365 || pe - ps > 90 || ce > pe) throw new Error("Limite : 366 jours de cours et 91 jours de planification ; la fin des cours doit précéder ou égaler la fin du planning.");
+  if (ce < cs || pe < ps || ce - cs > 365 || pe - ps > 90) throw new Error("Limite : 366 jours de cours et 91 jours de planification.");
   const free = new Map<number, MinuteSlot[]>();
   for (let d = ps; d <= pe; d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
@@ -43,7 +43,7 @@ export function generateSchedule(input: ScheduleInput) {
   const tasks: (Omit<PlannedRevision, "scheduledDate" | "startTime" | "endTime"> & { earliest: number; latest: number; target: number })[] = [];
   const unscheduled: UnscheduledRevision[] = [];
   let excludedMinutes = 0, occurrences = 0;
-  for (let d = cs; d <= ce; d++) {
+  for (let d = cs; d <= Math.min(ce, pe); d++) {
     const weekday = new Date(d * DAY).getUTCDay() || 7;
     for (const course of input.courses) for (const source of course.course_sessions.filter((s) => s.day_of_week === weekday)) {
       occurrences++;
