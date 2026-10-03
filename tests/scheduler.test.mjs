@@ -57,3 +57,81 @@ test("semester may end after planning without generating later occurrences", () 
   assert.equal(result.occurrences, 5);
   assert.ok(result.planned.every((revision) => revision.courseDate <= input.planningEnd && revision.scheduledDate <= input.planningEnd));
 });
+test("catch-up keeps the repetitions of each occurrence on distinct ordered days", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.planningStart = "2026-10-03"; input.planningEnd = "2026-10-25"; input.includeOverdue = true;
+  const result = generateSchedule(input);
+  assert.equal(result.planned.length, 4);
+  const series = [...result.planned].sort((a,b) => a.stage-b.stage);
+  assert.equal(new Set(series.map((r) => r.scheduledDate)).size, 4);
+  const delta = (a,b) => (Date.parse(b)-Date.parse(a))/86400000;
+  assert.equal(delta(series[0].scheduledDate, series[1].scheduledDate), 2);
+  assert.equal(delta(series[1].scheduledDate, series[2].scheduledDate), 4);
+  assert.equal(delta(series[2].scheduledDate, series[3].scheduledDate), 7);
+  assert.equal(result.planned.reduce((n,r) => n+r.durationMinutes,0), 360);
+});
+test("new revisions have a configurable pause without counting it as study time", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.intervals = [1];
+  input.courses[0].revision_multiplier = 0.5;
+  input.courses.push({ ...input.courses[0], id: "b", code: "MAT", course_sessions: [{ ...input.courses[0].course_sessions[0], id: "t", course_id: "b" }] });
+  input.breakMinutes = 20;
+  let result = generateSchedule(input);
+  assert.equal(result.planned.length, 2);
+  assert.equal(result.planned[0].endTime, "18:30"); assert.equal(result.planned[1].startTime, "18:50");
+  assert.equal(result.planned.reduce((n,r) => n+r.durationMinutes,0), 180);
+  input.breakMinutes = 0; result = generateSchedule(input);
+  assert.equal(result.planned[0].endTime, result.planned[1].startTime);
+});
+test("pause protects both sides of existing study revisions", () => {
+  const input = fixture(); input.courseEnd=input.courseStart; input.intervals=[1]; input.courses[0].revision_multiplier=0.5;
+  input.existing=[{ scheduled_date:"2026-09-15", start_time:"18:30", end_time:"19:30", status:"planned" }];
+  const result = generateSchedule(input);
+  assert.equal(result.planned[0].startTime,"19:45");
+  assert.equal(result.planned[0].durationMinutes,90);
+});
+test("deadline compression still leaves one calendar day between repetitions", () => {
+  const input=fixture(); input.courseEnd=input.courseStart;
+  input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-19",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,4);
+  assert.equal(new Set(result.planned.map((r)=>r.scheduledDate)).size,4);
+  assert.ok(result.planned.every((r)=>r.scheduledDate<"2026-09-19"));
+});
+test("not enough days reports spacing and does not place later repetitions first", () => {
+  const input=fixture(); input.courseEnd=input.courseStart;
+  input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-17",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,0); assert.equal(result.unscheduled[0].reasonCode,"spacing");
+  assert.equal(result.unscheduled[1].reasonCode,"previous_unplaced");
+  assert.equal(result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),360);
+});
+test("dates beyond the planning horizon are reported instead of pulled earlier", () => {
+  const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-22";
+  const result=generateSchedule(input);
+  const deferred=result.unscheduled.find((r)=>r.stage===4);
+  assert.equal(deferred.reasonCode,"planning_end"); assert.match(deferred.reason,/2026-09-28/);
+  assert.equal(result.planned.reduce((n,r)=>n+r.durationMinutes,0)+result.unscheduled.reduce((n,r)=>n+r.durationMinutes,0),360);
+  assert.ok(result.unscheduled.every((r)=>!r.reason.includes("examen")));
+});
+test("break duration validation rejects invalid values", () => {
+  for (const breakMinutes of [-1,1.5,61,NaN,Infinity]) assert.throws(()=>generateSchedule({...fixture(),breakMinutes}));
+});
+test("sparse availability is considered before placing the first repetition", () => {
+  const input=fixture();input.courseEnd=input.courseStart;input.planningEnd="2026-09-20";input.intervals=[3,5];
+  input.courses[0].course_sessions[0].end_time="19:00";
+  input.courses[0].exams=[{ id:"e",course_id:"a",title:"Exam",exam_date:"2026-09-21",start_time:"10:00",end_time:"12:00",importance:2,notes:"" }];
+  input.availability=[2,4].map((weekday)=>({ id:String(weekday),day_of_week:weekday,start_time:"10:00",end_time:"11:00" }));
+  const result=generateSchedule(input);
+  assert.equal(result.planned.length,2);assert.equal(result.unscheduled.length,0);
+  assert.equal(result.planned[0].scheduledDate,"2026-09-15");assert.equal(result.planned[1].scheduledDate,"2026-09-17");
+});
+test("pauses extend across midnight for new and existing revisions", () => {
+  const input=fixture();input.courseEnd=input.courseStart;input.intervals=[1];
+  input.courses[0].course_sessions[0].end_time="19:00";input.courses[0].revision_multiplier=1;
+  input.courses.push({ ...input.courses[0], id:"b", course_sessions:[{...input.courses[0].course_sessions[0],id:"t",course_id:"b"}] });
+  input.availability=[{id:"tue",day_of_week:2,start_time:"22:59",end_time:"23:59"},{id:"wed",day_of_week:3,start_time:"00:00",end_time:"01:15"}];
+  let result=generateSchedule(input);
+  assert.equal(result.planned[0].endTime,"23:59");assert.equal(result.planned[1].scheduledDate,"2026-09-16");assert.equal(result.planned[1].startTime,"00:14");
+  input.courses.pop();input.existing=[{scheduled_date:"2026-09-15",start_time:"22:59",end_time:"23:59",status:"planned"}];
+  result=generateSchedule(input);assert.equal(result.planned[0].startTime,"00:14");
+  input.existing[0].status="cancelled";result=generateSchedule(input);assert.equal(result.planned[0].scheduledDate,"2026-09-15");
+});
