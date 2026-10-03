@@ -22,13 +22,20 @@ case de rattrapage des anciennes révisions inconnues reste décochée. Le trava
 terminé et les séances conservées sont déduits : l’historique manqué reste visible
 après le rattrapage sans provoquer une copie supplémentaire à chaque recalcul.
 
-Le **Maximum de révision par jour** vaut 240 minutes (4 h) par défaut. Il est
-configurable de 15 à 1440 minutes et couvre toutes les matières, sans les cours ni
-les pauses. Une révision reste entière ; si elle dépasse ce maximum, elle ne peut
-pas être placée. Les séances conservées comptent dans ce total. Celles déjà au-delà
-d’un nouveau maximum restent conservées et sont signalées, sans ajout sur ce jour.
-Le plafond est contrôlé dans l’aperçu et dans la transaction SQL, puis sauvegardé
-avec les paramètres du planning. Un refus ne supprime pas l’ancien planning.
+La limite quotidienne est **facultative et désactivée par défaut** après la
+migration `202610030007_optional_daily_limit.sql`, à appliquer après la 006.
+Les disponibilités représentent les heures où l’utilisateur souhaite travailler.
+Le planning utilise ces heures en respectant les occupations, pauses et examens.
+
+Cocher **Ajouter une limite de révision par jour** uniquement si une contrainte
+supplémentaire est souhaitée. Le champ propose alors 240 minutes, modifiable de
+15 à 1440 minutes. Le total couvre toutes les matières, sans les cours ni les pauses.
+Une révision reste entière. Les séances conservées comptent dans ce total ; celles
+déjà au-delà d’un nouveau maximum sont signalées et aucune nouvelle séance n’est
+ajoutée sur ces jours. L’activation est sauvegardée explicitement. Décocher l’option
+transmet `null` au moteur et à la fonction SQL. Un refus conserve l’ancien planning.
+La migration désactive l’ancien plafond imposé ; recalculer puis sauvegarder pour
+utiliser les disponibilités sans cette limite supplémentaire.
 
 Les séances passées encore planifiées restent à valider à la lecture du tableau
 de bord : la consultation ne modifie pas la base. Une sauvegarde du planning

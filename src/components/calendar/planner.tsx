@@ -5,7 +5,7 @@ import { generateSchedule, type ScheduleInput } from "@/lib/scheduler/generateSc
 import { formatMinutes } from "@/lib/courses/session-time";
 import { formatCalendarDate } from "@/lib/utils/calendar-date";
 
-export type PlanningPreferences = { courseStart?: string; courseEnd?: string; planningStart?: string; planningEnd?: string; includeOverdue?: boolean; breakMinutes?: number; maxDailyMinutes?: number };
+export type PlanningPreferences = { courseStart?: string; courseEnd?: string; planningStart?: string; planningEnd?: string; includeOverdue?: boolean; breakMinutes?: number; maxDailyMinutes?: number | null; dailyLimitEnabled?: boolean };
 const addDays = (value: string, count: number) => new Date(Date.parse(`${value}T00:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
 const validDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 
@@ -14,6 +14,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
   const [error, setError] = useState("");
   const [saveFields, setSaveFields] = useState<Record<string, string> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dailyLimitEnabled, setDailyLimitEnabled] = useState(defaults?.dailyLimitEnabled === true);
   const tomorrow = addDays(today, 1);
   const defaultStart = validDate(defaults?.planningStart) && defaults.planningStart >= tomorrow ? defaults.planningStart : tomorrow;
   const defaultEnd = validDate(defaults?.planningEnd) && defaults.planningEnd >= defaultStart ? defaults.planningEnd : addDays(defaultStart, 30);
@@ -25,7 +26,7 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
     try {
       const planningStart = String(fields.get("planningStart"));
       if (planningStart <= today) throw new Error("Choisis un début de planning à partir de demain, pour éviter les heures déjà passées aujourd’hui.");
-      setResult(generateSchedule({ ...data, today, courseStart: String(fields.get("courseStart")), courseEnd: String(fields.get("courseEnd")), planningStart, planningEnd: String(fields.get("planningEnd")), includeOverdue: fields.get("includeOverdue") === "on", breakMinutes: Number(fields.get("breakMinutes")), maxDailyMinutes: Number(fields.get("maxDailyMinutes")) }));
+      setResult(generateSchedule({ ...data, today, courseStart: String(fields.get("courseStart")), courseEnd: String(fields.get("courseEnd")), planningStart, planningEnd: String(fields.get("planningEnd")), includeOverdue: fields.get("includeOverdue") === "on", breakMinutes: Number(fields.get("breakMinutes")), maxDailyMinutes: fields.get("dailyLimitEnabled") === "on" ? Number(fields.get("maxDailyMinutes")) : null }));
       setSaveFields(Object.fromEntries([...fields.entries()].map(([key, value]) => [key, String(value)])));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Impossible de calculer le planning."); }
   }
@@ -48,9 +49,10 @@ export function Planner({ data, today, planningRevision, defaults }: { data: Pic
         <p id="breakMinutesHelp" className="mt-2 text-sm leading-6 text-slate-600">De 0 à 60 minutes. La pause réserve du temps entre les révisions, sans augmenter les heures de travail affichées.</p>
       </div>
       <div className="max-w-sm">
+        <label className="mb-3 flex items-start gap-3 text-sm leading-6"><input name="dailyLimitEnabled" type="checkbox" checked={dailyLimitEnabled} onChange={(event) => setDailyLimitEnabled(event.target.checked)} className="mt-1" /><span>Ajouter une limite de révision par jour (facultatif)</span></label>
         <label htmlFor="maxDailyMinutes" className="block text-sm font-medium">Maximum de révision par jour (minutes)</label>
-        <input required id="maxDailyMinutes" name="maxDailyMinutes" type="number" min={15} max={1440} step={1} defaultValue={defaults?.maxDailyMinutes ?? 240} aria-describedby="dailyLimitHelp" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />
-        <p id="dailyLimitHelp" className="mt-2 text-sm leading-6 text-slate-600">240 minutes = 4 h. Le total couvre toutes les matières, sans les pauses ni les cours. Les séances conservées comptent dans cette limite ; une révision reste entière.</p>
+        <input required={dailyLimitEnabled} disabled={!dailyLimitEnabled} id="maxDailyMinutes" name="maxDailyMinutes" type="number" min={15} max={1440} step={1} defaultValue={defaults?.maxDailyMinutes ?? 240} aria-describedby="dailyLimitHelp" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <p id="dailyLimitHelp" className="mt-2 text-sm leading-6 text-slate-600">240 minutes = 4 h. Option désactivée par défaut : tes disponibilités déterminent ton temps de travail. Si tu actives la limite, elle couvre toutes les matières, y compris les séances conservées, sans les pauses ni les cours.</p>
       </div>
       <label className="flex items-start gap-3 text-sm leading-6"><input name="includeOverdue" type="checkbox" defaultChecked={defaults?.includeOverdue === true} className="mt-1" /><span>Inclure les révisions déjà échues comme restant à faire. Coche seulement si tu veux simuler leur rattrapage : l’application ne connaît pas encore les révisions que tu as faites en dehors d’elle.</span></label>
       <p className="text-sm leading-6 text-slate-600">Les révisions terminées sont déduites de la charge restante. Le calcul remplace les révisions encore planifiées dans la période choisie et réserve les séances conservées en dehors de cette période. Les cours archivés et les horaires supprimés ne génèrent plus de nouvelles révisions.</p>

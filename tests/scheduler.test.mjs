@@ -385,3 +385,17 @@ test("a fixed day above the lowered cap is reported, with no added study on that
   assert.equal(result.retainedOverLimitDays[0], "2026-09-15");
   assert.ok(result.planned.every(r => r.scheduledDate !== "2026-09-15"));
 });
+
+test("availability alone can host more than four study hours when no cap is enabled", () => {
+  const input = fixture(); input.courseEnd = input.courseStart; input.intervals = [1]; input.courses[0].revision_multiplier = 1;
+  input.availability = Array.from({ length: 7 }, (_, i) => ({ id: String(i), day_of_week: i+1, start_time: "08:00", end_time: "18:00" }));
+  input.courses.push({ ...input.courses[0], id: "b", course_sessions: [{ ...input.courses[0].course_sessions[0], id: "sb", course_id: "b" }] });
+  delete input.maxDailyMinutes;
+  const result = generateSchedule(input);
+  assert.equal(result.planned.length, 2);
+  assert.equal(result.planned[0].scheduledDate, result.planned[1].scheduledDate);
+  assert.equal(result.planned.reduce((n, r) => n + r.durationMinutes, 0), 360);
+  assert.equal(generateSchedule({ ...input, maxDailyMinutes: null }).planned.length, 2);
+  const capped = generateSchedule({ ...input, maxDailyMinutes: 180 });
+  assert.notEqual(capped.planned[0].scheduledDate, capped.planned[1].scheduledDate);
+});

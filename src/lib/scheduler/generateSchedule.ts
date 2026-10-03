@@ -10,7 +10,7 @@ import { findAvailableSlots, type MinuteSlot } from "./findAvailableSlots";
 export type PlannerCourse = Course & { course_sessions: CourseSession[]; exams: Exam[] };
 export type ExistingStudy = { scheduled_date: string; start_time: string; end_time: string; status: string; id?: string; course_id?: string; source_course_session_id?: string | null; source_course_session_key?: string | null; source_course_date?: string | null; revision_stage?: number; revision_interval_days?: number | null; duration_minutes?: number; source_start_time?: string | null; source_end_time?: string | null; cancellation_reason?: string | null };
 export type CourseOccurrence = { course_id: string; source_course_session_key: string; source_course_date: string; source_start_time: string | null; source_end_time: string | null; is_obsolete: boolean };
-export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; occurrences?: CourseOccurrence[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; maxDailyMinutes?: number; today?: string };
+export type ScheduleInput = { courses: PlannerCourse[]; availability: Availability[]; existing: ExistingStudy[]; occurrences?: CourseOccurrence[]; intervals: number[]; courseStart: string; courseEnd: string; planningStart: string; planningEnd: string; includeOverdue: boolean; breakMinutes?: number; maxDailyMinutes?: number | null; today?: string };
 export type PlannedRevision = { courseId: string; sourceId: string; courseDate: string; stage: number; intervalDays: number; durationMinutes: number; desiredDate: string; scheduledDate: string; startTime: string; endTime: string };
 export type UnscheduledReason = "exam_window" | "planning_end" | "spacing" | "capacity" | "previous_unplaced";
 export type UnscheduledRevision = { courseId: string; courseDate: string; durationMinutes: number; stage?: number; reasonCode: UnscheduledReason; reason: string };
@@ -34,8 +34,8 @@ export function generateSchedule(input: ScheduleInput) {
   if (ce < cs || pe < ps || ce - cs > 365 || pe - ps > 90) throw new Error("Limite : 366 jours de cours et 91 jours de planification.");
   const breakMinutes = input.breakMinutes ?? 15;
   if (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 60) throw new Error("La pause doit être un entier entre 0 et 60 minutes.");
-  const maxDailyMinutes = input.maxDailyMinutes ?? 240;
-  if (!Number.isInteger(maxDailyMinutes) || maxDailyMinutes < 15 || maxDailyMinutes > 1440) throw new Error("Le maximum quotidien doit être un entier entre 15 et 1440 minutes.");
+  const maxDailyMinutes = input.maxDailyMinutes ?? Number.POSITIVE_INFINITY;
+  if (input.maxDailyMinutes != null && (!Number.isInteger(maxDailyMinutes) || maxDailyMinutes < 15 || maxDailyMinutes > 1440)) throw new Error("Le maximum quotidien doit être un entier entre 15 et 1440 minutes.");
   const withBreak = (study: MinuteSlot): MinuteSlot => ({ start: study.start - breakMinutes, end: study.end + breakMinutes });
   const activeCourses = input.courses.filter((course) => !course.archived_at);
   const periods = new Map(activeCourses.map((course) => {
@@ -244,7 +244,7 @@ export function generateSchedule(input: ScheduleInput) {
       planned.push({ courseId: task.courseId, sourceId: task.sourceId, courseDate: task.courseDate, stage: task.stage, intervalDays: task.intervalDays, durationMinutes: task.durationMinutes, desiredDate: task.desiredDate, scheduledDate: date(d), startTime: time(start), endTime: time(end) });
     } else {
       const limit = task.examDate && day(task.examDate) - 1 <= pe ? `avant l’examen du ${task.examDate}` : `jusqu’à la fin du planning (${input.planningEnd})`;
-      fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min et une limite de ${maxDailyMinutes} min de révision par jour, du ${date(earliest)} au ${date(latest)} (${limit}).`);
+      fail("capacity", `Aucun créneau libre de ${task.durationMinutes} min, avec une pause de ${breakMinutes} min ${Number.isFinite(maxDailyMinutes) ? `et une limite de ${maxDailyMinutes} min de révision par jour` : "sans plafond quotidien supplémentaire"}, du ${date(earliest)} au ${date(latest)} (${limit}).`);
     }
   }
   planned.sort((a,b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime));

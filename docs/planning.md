@@ -1,6 +1,6 @@
 # Étape 16 — Moteur de planification
 
-Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles, origines et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md`, la mise à jour dans `replanning.md` et le nettoyage des propositions dans `clean-schedule-history.md` ; appliquer les migrations dans l’ordre jusqu’à `202610030006_missed_sessions.sql` est nécessaire. Le suivi et les périodes par matière sont décrits dans `session-tracking.md` et `course-periods.md`.
+Ouvrir **Planification** (`/calendar`). La page charge uniquement les cours, disponibilités, intervalles, origines et révisions du compte connecté. Le calcul reste une simulation jusqu’à l’enregistrement explicite. La sauvegarde est décrite dans `save-schedule.md`, la mise à jour dans `replanning.md` et le nettoyage des propositions dans `clean-schedule-history.md` ; appliquer les migrations dans l’ordre jusqu’à `202610030007_optional_daily_limit.sql` est nécessaire. Le suivi et les périodes par matière sont décrits dans `session-tracking.md` et `course-periods.md`.
 
 ## Utilisation
 
@@ -26,7 +26,7 @@ Une série complète n’est plus obligatoire : si seulement les répétitions 1
 
 Une date souhaitée au-delà de la fin du planning est signalée explicitement : le moteur ne l’avance pas uniquement pour la faire entrer dans cet aperçu. Les tâches sont traitées selon une règle déterministe ; celle-ci ne garantit pas un optimum global entre tous les cours. La priorité combine importance, charge à placer et proximité de l’examen ; la formule et ses limites sont décrites dans `exam-priority.md`.
 
-Chaque répétition reste entière : pas de découpage automatique. Les messages distinguent une date souhaitée au-delà de la fin du planning, l’absence de jours avant l’examen, le manque de créneaux assez longs et une répétition bloquée par la précédente. Le manque de place peut aussi venir de la pause ou de l’espacement requis ; il ne signifie pas systématiquement que l’examen est en cause. Le plafond quotidien configurable vaut 240 minutes par défaut ; il compte les révisions de toutes les matières, y compris celles conservées, sans les pauses ni les cours. Le rattrapage est décrit dans `missed-sessions.md`.
+Chaque répétition reste entière : pas de découpage automatique. Les messages distinguent une date souhaitée au-delà de la fin du planning, l’absence de jours avant l’examen, le manque de créneaux assez longs et une répétition bloquée par la précédente. Le manque de place peut aussi venir de la pause ou de l’espacement requis ; il ne signifie pas systématiquement que l’examen est en cause. Le plafond quotidien est facultatif et désactivé par défaut. Si activé, il compte les révisions de toutes les matières, y compris celles conservées, sans les pauses ni les cours. Le rattrapage est décrit dans `missed-sessions.md`.
 
 ## Limites de cette étape
 

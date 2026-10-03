@@ -25,15 +25,15 @@ export async function POST(request: NextRequest) {
     const today = todayInTimezone(profile.data?.timezone ?? "America/New_York");
     const revision = profile.data?.planning_revision;
     const expectedRevision = String(fields.get("expectedRevision") ?? "");
-    if (revision === undefined || revision === null || profile.data?.planning_history_version !== 1 || profile.data?.course_period_version !== 1 || profile.data?.missed_sessions_version !== 1 || occurrences === null) result = "migration";
+    if (revision === undefined || revision === null || profile.data?.planning_history_version !== 1 || profile.data?.course_period_version !== 1 || profile.data?.missed_sessions_version !== 1 || profile.data?.optional_daily_limit_version !== 1 || occurrences === null) result = "migration";
     else if (!/^\d+$/.test(expectedRevision) || expectedRevision !== String(revision)) result = "changed";
     else if (planningStart <= today) result = "invalid";
     else {
       const courseStart = String(fields.get("courseStart") ?? "");
       const courseEnd = String(fields.get("courseEnd") ?? "");
       const breakMinutes = Number(fields.get("breakMinutes"));
-      const maxDailyMinutes = Number(fields.get("maxDailyMinutes") ?? 240);
-      if (!Number.isInteger(maxDailyMinutes) || maxDailyMinutes < 15 || maxDailyMinutes > 1440) throw new Error("invalid_daily_limit");
+      const maxDailyMinutes = fields.get("dailyLimitEnabled") === "on" ? Number(fields.get("maxDailyMinutes")) : null;
+      if (maxDailyMinutes !== null && (!Number.isInteger(maxDailyMinutes) || maxDailyMinutes < 15 || maxDailyMinutes > 1440)) throw new Error("invalid_daily_limit");
       const planningEnd = String(fields.get("planningEnd") ?? "");
       const includeOverdue = fields.get("includeOverdue") === "on";
       const schedule = generateSchedule({ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, occurrences, intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS,

@@ -13,6 +13,8 @@
 
 7. Exécuter `202610030006_missed_sessions.sql` pour le rattrapage et le plafond quotidien ; voir `missed-sessions.md`.
 
+8. Exécuter `202610030007_optional_daily_limit.sql` : la limite quotidienne devient facultative et désactivée par défaut, conformément au temps de travail défini dans les disponibilités.
+
 La migration a été compilée et testée dans PostgreSQL local. Elle n’a pas été exécutée sur le projet Supabase distant par l’agent.
 
 ## Utilisation
