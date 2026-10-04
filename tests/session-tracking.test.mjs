@@ -14,8 +14,9 @@ class NextResponse extends Response {
 function load(file, supabase) {
   const absolute = path.resolve(file);
   const exports = {};
-  const code = ts.transpileModule(fs.readFileSync(absolute, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const code = ts.transpileModule(fs.readFileSync(absolute, "utf8"), { fileName: absolute, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   vm.runInNewContext(code, { exports, URL, Date, Intl, require(name) {
+    if (name === "react/jsx-runtime") return createRequire(import.meta.url)(name);
     if (name === "next/server") return { NextResponse };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };
     return load(name.startsWith("@/") ? `src/${name.slice(2)}.ts` : path.resolve(path.dirname(absolute), `${name}.ts`), supabase);
@@ -97,7 +98,8 @@ async function renderDashboard(studies, readError = null) {
     if (name === "next/link") return { default: (props) => React.createElement("a", props) };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };
     if (name === "@/lib/supabase/load-study-sessions") return { loadStudySessions: async () => studies };
-    return load(`src/${name.slice(2)}.ts`);
+    const target = `src/${name.slice(2)}`;
+    return load(fs.existsSync(`${target}.tsx`) ? `${target}.tsx` : `${target}.ts`);
   } });
   return renderToStaticMarkup(await exports.default({ searchParams: Promise.resolve({}) }));
 }
@@ -113,6 +115,7 @@ test("dashboard renders an actionable saved session, completed history and futur
   assert.match(html, /name="id" value="current"/);
   assert.doesNotMatch(html, /name="id" value="future"/);
   assert.match(html, /✓ Terminée/); assert.match(html, /Algorithmie/);
+  assert.match(html, /Mes statistiques de révision/); assert.match(html, /Progression par matière/);
 });
 test("a dashboard read failure is reported rather than displaying zero workload", async () => {
   await assert.rejects(renderDashboard([], { code: "offline" }), /Impossible de charger/);

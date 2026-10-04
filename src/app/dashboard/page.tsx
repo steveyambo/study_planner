@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { StudyStatistics } from "@/components/dashboard/study-statistics";
 import { requireUser } from "@/lib/supabase/require-user";
 import { loadStudySessions } from "@/lib/supabase/load-study-sessions";
 import { studySummary, type DashboardStudy } from "@/lib/dashboard/study-summary";
@@ -84,6 +85,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
     </div>
     {!!summary.overdue.length && <section className="mt-8"><h2 className="text-xl font-semibold">Séances passées encore à valider</h2><p className="mt-2 text-sm text-slate-600">Marque uniquement les révisions que tu as réellement faites.</p><ul className="mt-4 space-y-3">{summary.overdue.map(renderStudy)}</ul></section>}
+    <StudyStatistics studies={studies as DashboardStudy[]} courses={courses.data ?? []} today={today} />
     <section className="mt-8"><h2 className="text-xl font-semibold">Prochaines révisions</h2>
       {summary.upcoming.length ? <ul className="mt-4 space-y-3">{summary.upcoming.slice(0, 10).map(renderStudy)}</ul> : <p className="mt-3 text-sm text-slate-600">Aucune prochaine révision enregistrée.</p>}
       <Link href="/calendar" className="mt-4 inline-block font-medium text-indigo-700">Voir toutes les séances et recalculer le planning</Link>
