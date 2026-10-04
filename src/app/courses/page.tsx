@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { BookOpen, ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AddPanel } from "@/components/courses/add-panel";
 import { requireUser } from "@/lib/supabase/require-user";
 import { CourseForm } from "@/components/courses/course-form";
 import { DeleteCourseForm } from "@/components/courses/delete-course-form";
@@ -36,29 +39,28 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
   return (
     <>
-      <h1 className="text-3xl font-bold">Mes cours</h1>
-      <p className="mt-3 text-slate-600">Ajoute tes cours et choisis le temps de révision recommandé pour chacun.</p>
+      <header className="page-header flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
+        <div className="min-w-0"><p className="page-eyebrow">Mes matières</p><h1 className="page-title">Mes cours</h1><p className="page-description">Horaires, périodes et temps de révision, matière par matière.</p></div>
+        <AddPanel title="Ajouter un cours" description="Commence par la matière. Tu pourras ensuite ajouter ses horaires hebdomadaires."><CourseForm periodsReady={periodsReady} /></AddPanel>
+      </header>
       {message && <p role="status" className="mt-6 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-950">{message}</p>}
       {!periodsReady && <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Pour enregistrer les périodes propres à chaque matière, applique la migration 202610030005_course_periods.sql dans Supabase après la 004.</p>}
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <section className="self-start rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="mb-5 text-xl font-semibold">Ajouter un cours</h2>
-          <CourseForm periodsReady={periodsReady} />
-        </section>
-        <section aria-label="Liste des cours" className="space-y-4">
-          {courses.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-slate-600">Aucun cours pour le moment. Ajoute ton premier cours avec le formulaire.</p>}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-medium text-slate-500">{courses.length} {courses.length === 1 ? "matière active" : "matières actives"}</h2><span className="text-xs text-slate-500">Horaires chaque semaine</span></div>
+        <section aria-label="Liste des cours" className="grid items-start gap-4 xl:grid-cols-2">
+          {courses.length === 0 && <div className="surface-card p-6 sm:p-8"><BookOpen aria-hidden="true" className="size-7 text-slate-400" /><h2 className="mt-4 font-semibold text-slate-900">Ajoute ta première matière</h2><p className="mt-2 text-sm leading-6 text-slate-500">Le bouton « Ajouter un cours » te permet de renseigner son nom, sa période et le temps que tu souhaites lui consacrer.</p></div>}
           {courses.map((course) => (
-            <article key={`${course.id}-${course.code}-${course.name}-${course.color}-${course.revision_multiplier}-${course.starts_on}-${course.ends_on}`} className="rounded-2xl border border-slate-200 bg-white p-6">
+            <article key={`${course.id}-${course.code}-${course.name}-${course.color}-${course.revision_multiplier}-${course.starts_on}-${course.ends_on}`} className="surface-card min-w-0 p-4 sm:p-6">
               <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
+                <span aria-hidden="true" className="mt-1 size-3 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
                 <div className="min-w-0">
-                  <h2 className="break-words text-lg font-semibold">{course.code} — {course.name}</h2>
-                  <p className="mt-2 text-sm text-slate-600">1 h de cours → {course.revision_multiplier} h de révision</p>
+                  <h2 className="min-w-0 break-words text-lg font-semibold tracking-tight">{course.code}</h2><p className="mt-0.5 break-words text-sm text-slate-500">{course.name}</p>
+                  <Badge variant="secondary" className="mt-3">1 h de cours → {course.revision_multiplier} h de révision</Badge>
                   <p className="mt-2 text-sm text-slate-600">{course.starts_on ? `Premier cours : ${formatCalendarDate(course.starts_on)}.` : "Début selon la période de planification."} {course.ends_on ? `Dernier cours : ${formatCalendarDate(course.ends_on)}.` : "Fin selon la période de planification."}</p>
                 </div>
               </div>
-              <details className="mt-5">
-                <summary className="cursor-pointer text-sm font-semibold text-indigo-700">Modifier le cours</summary>
+              <details className="group mt-4 border-t border-slate-100">
+                <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 text-sm font-medium text-slate-700">Modifier le cours<ChevronDown aria-hidden="true" className="disclosure-chevron size-4 text-slate-400" /></summary>
                 <div className="mt-4"><CourseForm course={course} periodsReady={periodsReady} /></div>
               </details>
               <SessionList startsOn={course.starts_on} endsOn={course.ends_on} courseId={course.id} multiplier={course.revision_multiplier} sessions={course.course_sessions} intervals={intervals} examDates={course.exams.map((exam) => exam.exam_date)} />
@@ -67,12 +69,12 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           ))}
         </section>
       </div>
-      {archivedCourses.length > 0 && <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
+      {archivedCourses.length > 0 && <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="text-xl font-semibold">Cours archivés</h2>
         <p className="mt-3 text-sm leading-6 text-slate-600">Ces cours ne participent plus au planning. Leurs séances terminées et leur historique restent conservés. Leur code reste réservé.</p>
-        <ul className="mt-4 space-y-3">{archivedCourses.map((course) => <li key={course.id} className="flex items-center gap-3 text-sm text-slate-600">
+        <ul className="mt-4 space-y-3">{archivedCourses.map((course) => <li key={course.id} className="flex min-w-0 items-center gap-3 text-sm text-slate-600">
           <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
-          <span>{course.code} — {course.name}</span>
+          <span className="min-w-0 break-words">{course.code} — {course.name}</span>
         </li>)}</ul>
       </section>}
     </>

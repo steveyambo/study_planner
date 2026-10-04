@@ -3,6 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { ArrowRight, Loader2, MailCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/auth/password-input";
 
 export function RegisterForm({ confirmationError }: { confirmationError: string }) {
   const router = useRouter();
@@ -62,13 +65,14 @@ export function RegisterForm({ confirmationError }: { confirmationError: string 
   if (sent) {
     return (
       <div role="status" className="mt-6 rounded-xl bg-indigo-50 p-5 text-sm leading-7 text-indigo-950">
+        <MailCheck className="mb-3 size-6" aria-hidden="true" />
         Si cette adresse peut être inscrite, tu recevras un email de confirmation.
         Consulte aussi les courriers indésirables et ouvre le lien dans ce même navigateur.
       </div>
     );
   }
 
-  const inputStyle = "mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100";
+  const inputStyle = "field-input";
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-5" aria-busy={pending}>
       <fieldset disabled={pending} className="space-y-5 disabled:opacity-70">
@@ -79,21 +83,22 @@ export function RegisterForm({ confirmationError }: { confirmationError: string 
         </div>
         <div>
           <label htmlFor="email" className="text-sm font-medium">Email</label>
-          <input id="email" name="email" type="email" autoComplete="email" required maxLength={254} className={inputStyle} />
+          <input id="email" name="email" type="email" inputMode="email" autoCapitalize="none" autoComplete="email" required maxLength={254} className={inputStyle} />
         </div>
         <div>
           <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
-          <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} aria-describedby="password-help" className={inputStyle} />
+          <PasswordInput id="password" name="password" autoComplete="new-password" required minLength={8} aria-describedby="password-help" />
           <p id="password-help" className="mt-2 text-xs text-slate-600">Au moins 8 caractères.</p>
         </div>
         <div>
           <label htmlFor="confirmation" className="text-sm font-medium">Confirmer le mot de passe</label>
-          <input id="confirmation" name="confirmation" type="password" autoComplete="new-password" required minLength={8} className={inputStyle} />
+          <PasswordInput id="confirmation" name="confirmation" autoComplete="new-password" required minLength={8} />
         </div>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-800">{error}</p>}
-        <button type="submit" className="w-full rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+        <Button type="submit" size="lg" className="w-full">
           {pending ? "Inscription en cours…" : "Créer mon compte"}
-        </button>
+          {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
+        </Button>
       </fieldset>
     </form>
   );

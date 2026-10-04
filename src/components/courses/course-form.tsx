@@ -1,27 +1,28 @@
+import { Button } from "@/components/ui/button";
 import type { Course } from "@/types/course";
 
 export function CourseForm({ course, periodsReady = true }: { course?: Course; periodsReady?: boolean }) {
   const prefix = course?.id ?? "new";
-  const inputStyle = "mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-2 focus:outline-indigo-600";
+  const inputStyle = "field-input mt-2";
   return (
     <form action="/courses/save" method="post" className="space-y-4">
       {course && <input type="hidden" name="id" value={course.id} />}
       <div>
-        <label htmlFor={`${prefix}-code`} className="text-sm font-medium">Code du cours</label>
-        <input id={`${prefix}-code`} name="code" defaultValue={course?.code ?? ""} placeholder="INF3105" required maxLength={40} className={inputStyle} />
+        <label htmlFor={`${prefix}-code`} className="text-sm font-medium text-slate-700">Code du cours</label>
+        <input id={`${prefix}-code`} name="code" defaultValue={course?.code ?? ""} placeholder="Ex. INF3105" autoCapitalize="characters" required maxLength={40} className={inputStyle} />
       </div>
       <div>
-        <label htmlFor={`${prefix}-name`} className="text-sm font-medium">Nom du cours</label>
-        <input id={`${prefix}-name`} name="name" defaultValue={course?.name ?? ""} required maxLength={160} className={inputStyle} />
+        <label htmlFor={`${prefix}-name`} className="text-sm font-medium text-slate-700">Nom du cours</label>
+        <input id={`${prefix}-name`} name="name" defaultValue={course?.name ?? ""} placeholder="Ex. Algorithmie" required maxLength={160} className={inputStyle} />
       </div>
       <div>
-        <label htmlFor={`${prefix}-multiplier`} className="text-sm font-medium">Multiplicateur de révision</label>
+        <label htmlFor={`${prefix}-multiplier`} className="text-sm font-medium text-slate-700">Heures de révision pour 1 h de cours</label>
         <input id={`${prefix}-multiplier`} name="revision_multiplier" type="number" min="0.01" max="99.99" step="0.01" defaultValue={course?.revision_multiplier ?? 2} required className={inputStyle} aria-describedby={`${prefix}-help`} />
         <p id={`${prefix}-help`} className="mt-2 text-xs leading-5 text-slate-600">Avec 2, une heure de cours correspond à deux heures de révision.</p>
       </div>
       <div>
-        <label htmlFor={`${prefix}-color`} className="text-sm font-medium">Couleur du cours</label>
-        <input id={`${prefix}-color`} name="color" type="color" defaultValue={course?.color ?? "#4f46e5"} className="mt-2 block h-10 w-16 rounded border border-slate-300" />
+        <label htmlFor={`${prefix}-color`} className="text-sm font-medium text-slate-700">Couleur du cours</label>
+        <input id={`${prefix}-color`} name="color" type="color" defaultValue={course?.color ?? "#4f46e5"} className="mt-2 block h-12 w-20 cursor-pointer rounded-xl border border-slate-200 bg-white p-1" />
       </div>
       <fieldset disabled={!periodsReady} className="grid gap-4 sm:grid-cols-2">
         <legend className="mb-2 text-sm font-medium">Période de cette matière (facultative)</legend>
@@ -31,9 +32,9 @@ export function CourseForm({ course, periodsReady = true }: { course?: Course; p
           <input id={`${prefix}-ends`} name="ends_on" type="date" min="0001-01-01" max="9999-12-31" defaultValue={course?.ends_on ?? ""} className={inputStyle} /></div>
         <p className="text-xs leading-5 text-slate-600 sm:col-span-2">Dates incluses. Sans date, la période choisie dans Planification s’applique. Les révisions peuvent continuer après le dernier cours, avant l’examen et jusqu’à la fin du planning.</p>
       </fieldset>
-      <button disabled={!periodsReady} className="rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+      <Button disabled={!periodsReady} className="w-full">
         {course ? "Enregistrer les modifications" : "Ajouter le cours"}
-      </button>
+      </Button>
     </form>
   );
 }

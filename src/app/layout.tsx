@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: "Study Planner",
   description:
     "Organise tes cours, tes examens et tes révisions selon tes disponibilités.",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#f5f6f8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

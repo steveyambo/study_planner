@@ -12,7 +12,7 @@ export function RevisionPreview({ sessionId, dayOfWeek, minutes, intervals, exam
   const result = date ? generateRevisionDates(date, minutes, intervals, examDates) : null;
   return <div className="mt-4 space-y-3">
     <label htmlFor={`occurrence-${sessionId}`} className="block text-sm font-medium">Date d’une occurrence de ce cours</label>
-    <input id={`occurrence-${sessionId}`} type="date" min={startsOn ?? "0001-01-01"} max={endsOn ?? "9999-12-31"} value={date} onChange={(event) => setDate(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+    <input id={`occurrence-${sessionId}`} type="date" min={startsOn ?? "0001-01-01"} max={endsOn ?? "9999-12-31"} value={date} onChange={(event) => setDate(event.target.value)} className="field-input" />
     <div aria-live="polite" className="space-y-3 text-sm text-slate-600">
       {!date ? <p>Choisis une date pour voir l’effet des examens de ce cours.</p> : outsidePeriod ? <p>Cette date est en dehors de la période de cette matière.</p> : !weekdayMatches ? <p>Choisis une date correspondant au jour de cet horaire.</p> : result?.reason === "invalid" ? <p>Impossible de calculer ces dates. Vérifie la date et les intervalles.</p> : result?.reason === "no_window" ? <p>Aucun jour de révision entre le cours et l’examen du {formatCalendarDate(result.examDate!)}. La charge devra être signalée comme non planifiable.</p> : <>
         {result?.examDate && <p>Examen limite : {formatCalendarDate(result.examDate)}.</p>}

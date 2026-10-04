@@ -10,8 +10,9 @@ function load(file) {
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(file, "utf8"), { fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   vm.runInNewContext(code, { exports, Date, Intl, Map, require(name) {
-    if (name === "react/jsx-runtime") return realRequire(name);
-    return load(`src/${name.slice(2)}.ts`);
+    if (!name.startsWith("@/")) return realRequire(name);
+    const target = `src/${name.slice(2)}`;
+    return load(fs.existsSync(`${target}.tsx`) ? `${target}.tsx` : `${target}.ts`);
   } });
   return exports;
 }
@@ -48,6 +49,8 @@ test("real component renders totals, accessible per-course progress and honest m
   assert.match(html, /40 %/); assert.match(html, /1 h 30 min/); assert.match(html, /Progression de INF/);
   assert.match(html, /ANG · Archivé/); assert.match(html, /ne sont pas ajoutées au temps encore planifié/);
   assert.match(html, /Suivi des six dernières semaines/);
+  assert.match(html, /<ul[^>]*aria-label="Statistiques par matière"/);
+  assert.match(html, /<dt[^>]*>Encore planifié<\/dt>/);
   const empty = renderToStaticMarkup(StudyStatistics({ today: "2026-10-03", courses: [], studies: [] }));
   assert.match(empty, /Aucune séance planifiée ou terminée à mesurer/); assert.doesNotMatch(empty, /NaN|Infinity/);
 });

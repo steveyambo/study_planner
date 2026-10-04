@@ -2,29 +2,32 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/auth/password-input";
 
 export function LoginForm({ error }: { error: string }) {
   const [pending, setPending] = useState(false);
 
-  const inputStyle = "mt-2 w-full rounded-lg border border-slate-300 px-3 py-3 focus:border-indigo-600 focus:outline-2 focus:outline-indigo-600";
   return (
-    <form action="/auth/login" method="post" onSubmit={() => setPending(true)} className="mt-8 space-y-5" aria-busy={pending}>
+    <form action="/auth/login" method="post" onSubmit={() => setPending(true)} className="mt-7 space-y-5" aria-busy={pending}>
       <fieldset className="space-y-5">
         <legend className="sr-only">Identifiants de connexion</legend>
         <div>
           <label htmlFor="email" className="text-sm font-medium">Email</label>
-          <input id="email" name="email" type="email" autoComplete="email" required className={inputStyle} />
+          <input id="email" name="email" type="email" inputMode="email" autoCapitalize="none" autoComplete="email" required className="field-input" />
         </div>
         <div>
           <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
-          <input id="password" name="password" type="password" autoComplete="current-password" required className={inputStyle} />
+          <PasswordInput id="password" name="password" autoComplete="current-password" required />
         </div>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm leading-6 text-red-800">{error}</p>}
-        <button disabled={pending} className="w-full rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+        <Button disabled={pending} size="lg" className="w-full">
           {pending ? "Connexion en cours…" : "Se connecter"}
-        </button>
+          {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
+        </Button>
       </fieldset>
-      <p className="text-sm text-slate-600">Pas encore de compte ? <Link href="/register" className="font-semibold text-indigo-700 underline">Créer un compte</Link></p>
+      <p className="text-center text-sm text-slate-500">Pas encore de compte ? <Link href="/register" className="inline-flex min-h-11 items-center font-semibold text-indigo-700 underline underline-offset-4">Créer un compte</Link></p>
     </form>
   );
 }

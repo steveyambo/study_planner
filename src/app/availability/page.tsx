@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ChevronDown, Clock3 } from "lucide-react";
+import { AddPanel } from "@/components/courses/add-panel";
 import { requireUser } from "@/lib/supabase/require-user";
 import { AvailabilityForm, DeleteAvailabilityForm } from "@/components/availability/availability-form";
 import { weekDays, sessionMinutes, formatMinutes } from "@/lib/courses/session-time";
@@ -16,23 +18,24 @@ export default async function AvailabilityPage({ searchParams }: { searchParams:
   const { result } = await searchParams;
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
   return <>
-    <h1 className="text-3xl font-bold">Mes disponibilités</h1>
-    <p className="mt-3 max-w-2xl leading-7 text-slate-600">Indique les créneaux où tu peux réviser chaque semaine. Les cours et examens seront déduits par le moteur de planification.</p>
-    <p className="mt-4 font-semibold text-indigo-700">Total déclaré : {formatMinutes(total)} par semaine</p>
-    {message && <p role="status" className="mt-6 rounded-lg bg-indigo-50 p-4 text-sm text-indigo-950">{message}</p>}
-    <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-      <section className="self-start rounded-2xl border border-slate-200 bg-white p-6"><h2 className="mb-5 text-xl font-semibold">Ajouter une disponibilité</h2><AvailabilityForm /></section>
-      <div className="space-y-4">{weekDays.map((day, index) => {
-        const daily = slots.filter((slot) => slot.day_of_week === index + 1);
-        return <section key={day} className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="text-lg font-semibold">{day}</h2>
-          {!daily.length ? <p className="mt-3 text-sm text-slate-600">Indisponible</p> : <ul className="mt-4 space-y-4">{daily.map((slot) => <li key={slot.id} className="rounded-lg bg-slate-50 p-4">
-            <p className="text-sm font-medium">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} · {formatMinutes(sessionMinutes(slot.start_time, slot.end_time) ?? 0)}</p>
-            <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-indigo-700">Modifier le créneau</summary><div className="mt-4"><AvailabilityForm slot={slot} /></div></details>
-            <DeleteAvailabilityForm id={slot.id} />
-          </li>)}</ul>}
-        </section>;
-      })}</div>
-    </div>
+    <header className="page-header flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
+      <div className="min-w-0"><p className="page-eyebrow">Mon rythme</p><h1 className="page-title">Mes disponibilités</h1><p className="page-description">Les moments où tu souhaites travailler, chaque semaine.</p></div>
+      <AddPanel title="Ajouter un créneau" description="Choisis un jour et une plage horaire. Le planning réservera tes révisions dans ces disponibilités."><AvailabilityForm /></AddPanel>
+    </header>
+    {message && <p role="status" className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-950">{message}</p>}
+    <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><Clock3 aria-hidden="true" className="size-5" /></span><div><p className="text-lg font-semibold tracking-tight text-slate-950">{formatMinutes(total)} <span className="text-sm font-normal text-slate-500">par semaine</span></p><p className="mt-1 text-xs leading-5 text-slate-500">Les cours, les examens et les pauses seront déduits de ces créneaux.</p></div></div>
+    <div className="mt-6 grid items-start gap-3 lg:grid-cols-2">{weekDays.map((day, index) => {
+      const daily = slots.filter((slot) => slot.day_of_week === index + 1);
+      const dailyMinutes = daily.reduce((sum, slot) => sum + (sessionMinutes(slot.start_time, slot.end_time) ?? 0), 0);
+      return <section key={day} className="surface-card min-w-0 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold">{day}</h2><span className={`text-xs ${daily.length ? "font-medium text-slate-600" : "text-slate-500"}`}>{daily.length ? formatMinutes(dailyMinutes) : "Indisponible"}</span></div>
+        {daily.length > 0 && <ul className="mt-3 space-y-3">{daily.map((slot) => <li key={slot.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3 sm:p-4">
+          <p className="text-sm font-medium tabular-nums text-slate-800">{slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)} <span className="ml-1 text-xs font-normal text-slate-500">· {formatMinutes(sessionMinutes(slot.start_time, slot.end_time) ?? 0)}</span></p>
+          <details className="group mt-1"><summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium text-slate-600">Modifier le créneau<ChevronDown aria-hidden="true" className="disclosure-chevron size-4 text-slate-400" /></summary><div className="pb-2 pt-2"><AvailabilityForm slot={slot} /></div></details>
+          <DeleteAvailabilityForm id={slot.id} />
+        </li>)}</ul>}
+      </section>;
+    })}</div>
+    {!slots.length && <p className="mt-4 text-sm leading-6 text-slate-500">Ajoute ton premier créneau avec le bouton ci-dessus. Tu pourras en définir plusieurs pour un même jour.</p>}
   </>;
 }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -30,9 +32,10 @@ export function LogoutButton() {
 
   return (
     <div>
-      <button onClick={logout} disabled={pending} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600">
+      <Button variant="ghost" onClick={logout} disabled={pending} className="w-full justify-start text-slate-500">
+        <LogOut className="size-4" aria-hidden="true" />
         {pending ? "Déconnexion…" : "Se déconnecter"}
-      </button>
+      </Button>
       {error && <p role="alert" className="mt-2 text-sm text-red-800">{error}</p>}
     </div>
   );

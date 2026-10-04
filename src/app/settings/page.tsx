@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, Repeat2 } from "lucide-react";
 import { requireUser } from "@/lib/supabase/require-user";
 import { RevisionRulesForm } from "@/components/settings/revision-rules-form";
 import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
@@ -14,14 +16,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const { result } = await searchParams;
   const message = typeof result === "string" && Object.hasOwn(messages, result) ? messages[result] : "";
   return <>
-    <h1 className="text-3xl font-bold">Paramètres</h1>
-    <p className="mt-3 text-slate-600">Choisis les intervalles de ta répétition espacée.</p>
+    <header className="page-header"><div><p className="page-eyebrow">Mes préférences</p><h1 className="page-title">Paramètres</h1><p className="page-description">Adapte le rythme de tes répétitions.</p></div></header>
     {message && <p role="status" className="mt-6 rounded-lg bg-indigo-50 p-4 text-sm text-indigo-950">{message}</p>}
-    <section className="mt-8 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6">
-      <h2 className="text-xl font-semibold">Répétition espacée</h2>
+    <section className="surface-card mt-6 max-w-2xl p-4 sm:p-6">
+      <div className="flex items-center gap-2.5"><Repeat2 aria-hidden="true" className="size-5 text-slate-400" /><h2 className="text-lg font-semibold tracking-tight">Répétition espacée</h2></div>
       <p className="mt-3 text-sm leading-7 text-slate-600">J+1 signifie une révision le lendemain du cours. Le moteur utilisera ces intervalles pour calculer les dates souhaitées, puis les adaptera aux disponibilités et aux examens.</p>
       <RevisionRulesForm intervals={intervals} />
-      <p className="mt-6 text-sm leading-6 text-slate-600">Cette étape enregistre ta règle. La génération et la replanification des séances seront ajoutées dans les prochaines étapes.</p>
+      <p className="mt-6 text-sm leading-6 text-slate-600">Les nouveaux intervalles seront utilisés lors du prochain calcul. Les séances déjà terminées restent conservées.</p>
+      <Link href="/calendar" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-indigo-700">Recalculer mon planning<ArrowRight aria-hidden="true" className="size-4" /></Link>
     </section>
   </>;
 }

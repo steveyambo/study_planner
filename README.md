@@ -35,7 +35,7 @@ Le projet comprend actuellement la planification, l’enregistrement, le calendr
 | Répétitions | Intervalles configurables, initialement à J+1, J+3, J+7 et J+14. |
 | Planification | Aperçu, pauses entre révisions, priorités et explications des révisions non placées. |
 | Replanification | Remplacement des propositions dans la période choisie, déduction du travail terminé et conservation des séances hors de cette période. |
-| Calendrier | Vues semaine et mois, navigation et détail des cours, examens et révisions enregistrées. |
+| Calendrier | Agenda quotidien sur mobile, grille hebdomadaire sur ordinateur, vue mois et détail des cours, examens et révisions enregistrées. |
 | Suivi | Validation des révisions terminées, signalement des séances manquées et rattrapage lors d’un recalcul. |
 | Statistiques | Temps terminé et planifié, progression par matière et suivi des six dernières semaines. |
 | Isolation | Authentification et politiques RLS pour séparer les données de chaque compte. |
@@ -47,6 +47,7 @@ Le projet comprend actuellement la planification, l’enregistrement, le calendr
 | Application | Next.js 16, App Router et React 19 |
 | Langage | TypeScript |
 | Styles | Tailwind CSS 4 et CSS |
+| Interface | Composants locaux suivant shadcn/ui, panneaux Radix UI et icônes Lucide |
 | Données | PostgreSQL via Supabase |
 | Authentification | Supabase Auth avec `@supabase/ssr` |
 | Tests applicatifs | Exécuteur de tests intégré à Node.js |
@@ -427,6 +428,7 @@ Les notifications, l’export ou la synchronisation avec un calendrier externe, 
 | Répétitions | [Charge de travail](docs/study-time.md), [Répartition](docs/revision-distribution.md), [Règles](docs/revision-rules.md), [Dates souhaitées](docs/revision-dates.md) |
 | Planning | [Calcul](docs/planning.md), [Enregistrement](docs/save-schedule.md), [Replanification](docs/replanning.md), [Nettoyage de l’historique](docs/clean-schedule-history.md) |
 | Suivi | [Révisions terminées](docs/session-tracking.md), [Séances manquées](docs/missed-sessions.md), [Calendrier visuel](docs/visual-calendar.md), [Statistiques](docs/statistics.md) |
+| Interface | [Navigation, composants et vérifications mobiles](docs/mobile-interface.md) |
 | Exploitation | [Sécurité](docs/security.md), [Test sur téléphone](docs/mobile-testing.md) |
 
 Certains guides retracent une étape antérieure du développement. Ce README décrit le fonctionnement actuel ; le code et les migrations correspondantes précisent les validations techniques.

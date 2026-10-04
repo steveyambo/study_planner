@@ -19,7 +19,9 @@ function load(file, supabase) {
     if (name === "react/jsx-runtime") return createRequire(import.meta.url)(name);
     if (name === "next/server") return { NextResponse };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };
-    return load(name.startsWith("@/") ? `src/${name.slice(2)}.ts` : path.resolve(path.dirname(absolute), `${name}.ts`), supabase);
+    if (!name.startsWith("@/") && !name.startsWith(".")) return createRequire(import.meta.url)(name);
+    const target = name.startsWith("@/") ? `src/${name.slice(2)}` : path.resolve(path.dirname(absolute), name);
+    return load(fs.existsSync(`${target}.tsx`) ? `${target}.tsx` : `${target}.ts`, supabase);
   } });
   return exports;
 }
@@ -98,6 +100,7 @@ async function renderDashboard(studies, readError = null) {
     if (name === "next/link") return { default: (props) => React.createElement("a", props) };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };
     if (name === "@/lib/supabase/load-study-sessions") return { loadStudySessions: async () => studies };
+    if (!name.startsWith("@/")) return realRequire(name);
     const target = `src/${name.slice(2)}`;
     return load(fs.existsSync(`${target}.tsx`) ? `${target}.tsx` : `${target}.ts`);
   } });
@@ -116,6 +119,8 @@ test("dashboard renders an actionable saved session, completed history and futur
   assert.doesNotMatch(html, /name="id" value="future"/);
   assert.match(html, /✓ Terminée/); assert.match(html, /Algorithmie/);
   assert.match(html, /Mes statistiques de révision/); assert.match(html, /Progression par matière/);
+  assert.match(html, /aria-labelledby="today-title"/);
+  assert.match(html, /Marquer comme terminée/);
 });
 test("a dashboard read failure is reported rather than displaying zero workload", async () => {
   await assert.rejects(renderDashboard([], { code: "offline" }), /Impossible de charger/);
