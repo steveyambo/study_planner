@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/require-user";
 import { loadCourseOccurrences, loadStudySessions } from "@/lib/supabase/load-study-sessions";
 import { AppShell } from "@/components/layout/app-shell";
 import { Planner, type PlanningPreferences } from "@/components/calendar/planner";
+import { VisualCalendar } from "@/components/calendar/visual-calendar";
 import { DEFAULT_REVISION_INTERVALS } from "@/lib/scheduler/revision-intervals";
 import { todayInTimezone } from "@/lib/utils/calendar-date";
 import type { PlannerCourse, ExistingStudy } from "@/lib/scheduler/generateSchedule";
@@ -56,8 +57,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     {result && Object.hasOwn(messages, result) && <p role="status" className="mt-5 rounded-lg bg-indigo-50 p-4 text-indigo-950">{messages[result]}</p>}
     {planningRevision === null ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">La planification nécessite les migrations jusqu’à 202610030007_optional_daily_limit.sql, dans l’ordre. Tu peux calculer un aperçu ; applique cette migration dans Supabase avant de l’enregistrer.</p> : isOutdated ? <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">Planning à recalculer : tes cours, horaires, examens, disponibilités, paramètres ou séances ont changé depuis la dernière sauvegarde. Calcule un aperçu puis enregistre-le pour mettre à jour les révisions futures de la période choisie.</p> : hasSavedPlanning ? <p role="status" className="mt-5 rounded-lg bg-emerald-50 p-4 text-emerald-950">Les données n’ont pas changé depuis la dernière sauvegarde{savedPeriodLabel}. Tu peux choisir une autre période ou recalculer le planning.</p> : null}
     {outsideWindow > 0 && <p role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-amber-950">{outsideWindow} révisions futures sont conservées hors de la dernière période mise à jour{savedPeriodLabel}. Vérifie leurs créneaux ou élargis la prochaine replanification après une modification des données.</p>}
-    {!!studies.length && <section className="mt-8 space-y-3"><h2 className="text-xl font-semibold">Séances enregistrées</h2>
-      {currentStudies.length > 0 ? <ul className="space-y-3">{currentStudies.map(renderStudy)}</ul> : <p className="text-sm text-slate-600">Aucune séance encore planifiée ou terminée à afficher.</p>}
+    <VisualCalendar today={today} data={{ courses: (courses.data ?? []) as PlannerCourse[], studies, occurrences: occurrences ?? [], courseStart: preferences?.courseStart, courseEnd: preferences?.courseEnd }} />
+    {!!studies.length && <section className="mt-6 space-y-3">
+      {currentStudies.length > 0 && <details className="rounded-lg border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-medium text-indigo-700">Voir les séances enregistrées en liste ({currentStudies.length})</summary><ul className="mt-3 space-y-3">{currentStudies.map(renderStudy)}</ul></details>}
       {historicalStudies.length > 0 && <details className="rounded-lg border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-medium text-indigo-700">Historique ({historicalStudies.length})</summary><p className="mt-3 text-sm text-slate-600">Séances manquées ou annulées, conservées pour le suivi.</p><ul className="mt-3 space-y-3">{historicalStudies.map(renderStudy)}</ul></details>}
     </section>}
     <Planner today={today} planningRevision={planningRevision} defaults={preferences} data={{ courses: (courses.data ?? []) as PlannerCourse[], availability: (availability.data ?? []) as Availability[], existing, occurrences: occurrences ?? [], intervals: rules.data?.intervals ?? DEFAULT_REVISION_INTERVALS }} />
