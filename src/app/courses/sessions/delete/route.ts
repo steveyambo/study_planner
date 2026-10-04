@@ -1,9 +1,10 @@
+import { hasSameOrigin, requestOrigin } from "@/lib/http/request-origin";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isCourseId } from "@/lib/courses/validation";
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) return new NextResponse("Requête non autorisée", { status: 403 });
+  if (!hasSameOrigin(request)) return new NextResponse("Requête non autorisée", { status: 403 });
   const { supabase, userId } = await requireUser();
   let result = "failed";
   try {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch { result = "failed"; }
-  const destination = new URL("/courses", request.url);
+  const destination = new URL("/courses", requestOrigin(request));
   destination.searchParams.set("result", result);
   const response = NextResponse.redirect(destination, 303);
   response.headers.set("Cache-Control", "private, no-store");

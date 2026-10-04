@@ -15,7 +15,7 @@ function load(file, supabase) {
   const absolute = path.resolve(file);
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(absolute, "utf8"), { fileName: absolute, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  vm.runInNewContext(code, { exports, URL, Date, Intl, require(name) {
+  vm.runInNewContext(code, { process: { env: {} }, exports, URL, Date, Intl, require(name) {
     if (name === "react/jsx-runtime") return createRequire(import.meta.url)(name);
     if (name === "next/server") return { NextResponse };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };
@@ -93,7 +93,7 @@ async function renderDashboard(studies, readError = null) {
     return { select() { return this; }, eq() { return this; }, maybeSingle: async () => output, then(resolve) { return Promise.resolve(output).then(resolve); } };
   } };
   const code = ts.transpileModule(fs.readFileSync(file, "utf8"), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  vm.runInNewContext(code, { exports, Date, Intl, require(name) {
+  vm.runInNewContext(code, { process: { env: {} }, exports, Date, Intl, require(name) {
     if (name === "react/jsx-runtime") return realRequire(name);
     if (name === "next/link") return { default: (props) => React.createElement("a", props) };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId: "owner" }) };

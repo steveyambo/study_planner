@@ -1,3 +1,4 @@
+import { requestOrigin } from "@/lib/http/request-origin";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "./config";
@@ -47,7 +48,7 @@ export async function updateSession(request: NextRequest) {
   if (authenticated && (pathname === "/login" || pathname === "/register")) destination = "/dashboard";
 
   if (destination) {
-    const redirect = NextResponse.redirect(new URL(destination, request.url));
+    const redirect = NextResponse.redirect(new URL(destination, requestOrigin(request)));
     for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
     for (const name of ["cache-control", "expires", "pragma"]) {
       const value = response.headers.get(name);

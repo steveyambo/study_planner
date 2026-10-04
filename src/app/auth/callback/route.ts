@@ -1,3 +1,4 @@
+import { requestOrigin } from "@/lib/http/request-origin";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { classifyConfirmationError, type ConfirmationFailure } from "@/lib/supabase/confirmation-errors";
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       flowId ? { flowId } : undefined,
     );
     if (!error) {
-      const response = NextResponse.redirect(new URL("/dashboard", request.url));
+      const response = NextResponse.redirect(new URL("/dashboard", requestOrigin(request)));
       response.headers.set("Cache-Control", "private, no-store");
       return response;
     }
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   } else {
     console.warn("[auth/callback]", { reason });
   }
-  const destination = new URL("/register", request.url);
+  const destination = new URL("/register", requestOrigin(request));
   destination.searchParams.set("confirmation", "failed");
   destination.searchParams.set("reason", reason);
   const response = NextResponse.redirect(destination);

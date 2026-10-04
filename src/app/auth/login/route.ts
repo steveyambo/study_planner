@@ -1,17 +1,17 @@
+import { hasSameOrigin, requestOrigin } from "@/lib/http/request-origin";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin || origin !== request.nextUrl.origin) {
+  if (!hasSameOrigin(request)) {
     return new NextResponse("Requête non autorisée", { status: 403 });
   }
 
-  const response = NextResponse.redirect(new URL("/dashboard", request.url), 303);
+  const response = NextResponse.redirect(new URL("/dashboard", requestOrigin(request)), 303);
   response.headers.set("Cache-Control", "private, no-store");
   function fail(reason: string) {
-    const destination = new URL("/login", request.url);
+    const destination = new URL("/login", requestOrigin(request));
     destination.searchParams.set("error", reason);
     response.headers.set("Location", destination.toString());
     return response;

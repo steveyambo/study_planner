@@ -1,9 +1,10 @@
+import { hasSameOrigin, requestOrigin } from "@/lib/http/request-origin";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { isCourseId } from "@/lib/courses/validation";
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) return new NextResponse("Requête non autorisée", { status: 403 });
+  if (!hasSameOrigin(request)) return new NextResponse("Requête non autorisée", { status: 403 });
   const { supabase } = await requireUser();
   let result = "failed";
   try {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
   } catch { result = "failed"; }
   // Un rattrapage est d'abord un apercu : aucune autre seance n'est deplacee ici.
-  const destination = new URL(result === "missed" ? "/calendar?result=missed" : `/dashboard?result=${result}`, request.url);
+  const destination = new URL(result === "missed" ? "/calendar?result=missed" : `/dashboard?result=${result}`, requestOrigin(request));
   const response = NextResponse.redirect(destination, 303);
   response.headers.set("Cache-Control", "private, no-store");
   return response;

@@ -17,7 +17,7 @@ function load(file, supabase) {
   const absolute = path.resolve(file);
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(absolute, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(code, { exports, URL, require(name) {
+  vm.runInNewContext(code, { process: { env: {} }, exports, URL, require(name) {
     if (name === "next/server") return { NextResponse };
     if (name === "@/lib/supabase/require-user") return { requireUser: async () => ({ supabase, userId }) };
     return load(name.startsWith("@/") ? `src/${name.slice(2)}.ts` : path.resolve(path.dirname(absolute), `${name}.ts`), supabase);

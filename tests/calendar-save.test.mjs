@@ -9,7 +9,7 @@ const proposed = [{ courseId: "own-course", sourceId: "own-source", courseDate: 
 function loadModule(path, dependencies = {}) {
   const exports = {};
   const code = ts.transpileModule(fs.readFileSync(path,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-  vm.runInNewContext(code,{exports,require:(name)=>dependencies[name],URL});
+  vm.runInNewContext(code,{process: { env: {} },exports,require:(name)=>name === "@/lib/http/request-origin" ? loadModule("src/lib/http/request-origin.ts") : dependencies[name],URL});
   return exports;
 }
 function setup({ existing = [], occurrences = [], historyVersion = 1, periodVersion = 1, missedVersion = 1, optionalLimitVersion = 1, occurrenceError = null, planned = proposed, revision = 7, rpcError = null, pageLimit = 1000, pageErrorAt = null } = {}) {

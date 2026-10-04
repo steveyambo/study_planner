@@ -1,3 +1,4 @@
+import { hasSameOrigin, requestOrigin } from "@/lib/http/request-origin";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/supabase/require-user";
 import { loadCourseOccurrences, loadStudySessions } from "@/lib/supabase/load-study-sessions";
@@ -7,7 +8,7 @@ import { todayInTimezone } from "@/lib/utils/calendar-date";
 import type { Availability } from "@/types/availability";
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) return new NextResponse("Requête non autorisée", { status: 403 });
+  if (!hasSameOrigin(request)) return new NextResponse("Requête non autorisée", { status: 403 });
   const { supabase, userId } = await requireUser();
   let result = "failed";
   try {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch { result = "failed"; }
-  const response = NextResponse.redirect(new URL(`/calendar?result=${result}`, request.url), 303);
+  const response = NextResponse.redirect(new URL(`/calendar?result=${result}`, requestOrigin(request)), 303);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
