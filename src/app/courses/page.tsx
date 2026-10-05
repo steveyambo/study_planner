@@ -50,7 +50,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         <section aria-label="Liste des cours" className="grid items-start gap-4 xl:grid-cols-2">
           {courses.length === 0 && <div className="surface-card p-6 sm:p-8"><BookOpen aria-hidden="true" className="size-7 text-slate-400" /><h2 className="mt-4 font-semibold text-slate-900">Ajoute ta première matière</h2><p className="mt-2 text-sm leading-6 text-slate-500">Le bouton « Ajouter un cours » te permet de renseigner son nom, sa période et le temps que tu souhaites lui consacrer.</p></div>}
           {courses.map((course) => (
-            <article key={`${course.id}-${course.code}-${course.name}-${course.color}-${course.revision_multiplier}-${course.starts_on}-${course.ends_on}`} className="surface-card min-w-0 p-4 sm:p-6">
+            <article id={`course-${course.id}`} key={`${course.id}-${course.code}-${course.name}-${course.color}-${course.revision_multiplier}-${course.starts_on}-${course.ends_on}`} className="surface-card min-w-0 scroll-mt-24 p-4 sm:p-6">
               <div className="flex items-start gap-3">
                 <span aria-hidden="true" className="mt-1 size-3 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
                 <div className="min-w-0">

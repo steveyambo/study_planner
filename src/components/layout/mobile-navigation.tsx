@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { BookOpen, CalendarDays, ChevronRight, Clock3, GraduationCap, LayoutDashboard, MoreHorizontal, Settings2 } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronRight, Clock3, Compass, GraduationCap, LayoutDashboard, MoreHorizontal, Settings2 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Brand } from "@/components/layout/brand";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils/cn";
 
-export type ActivePage = "dashboard" | "courses" | "exams" | "availability" | "settings" | "calendar";
+export type ActivePage = "dashboard" | "courses" | "exams" | "availability" | "settings" | "calendar" | "guide";
 const primary = [
   { page: "dashboard", href: "/dashboard", label: "Aujourd’hui", icon: LayoutDashboard },
   { page: "calendar", href: "/calendar", label: "Agenda", icon: CalendarDays },
@@ -18,6 +18,7 @@ const more = [
   { page: "exams", href: "/exams", label: "Examens", detail: "Dates et échéances", icon: GraduationCap },
   { page: "availability", href: "/availability", label: "Disponibilités", detail: "Tes créneaux de travail", icon: Clock3 },
   { page: "settings", href: "/settings", label: "Paramètres", detail: "Le rythme de tes révisions", icon: Settings2 },
+  { page: "guide", href: "/getting-started", label: "Guide de démarrage", detail: "Configurer ton premier planning", icon: Compass },
 ] as const;
 
 export function MobileNavigation({ activePage, fullName }: { activePage: ActivePage; fullName: string }) {

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { BookOpen, CalendarDays, Clock3, GraduationCap, LayoutDashboard, Settings2 } from "lucide-react";
+import { Suspense, type ReactNode } from "react";
+import { BookOpen, CalendarDays, Clock3, Compass, GraduationCap, LayoutDashboard, Settings2 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Brand } from "@/components/layout/brand";
 import { MobileNavigation, type ActivePage } from "@/components/layout/mobile-navigation";
+import { SetupAssistant } from "@/components/onboarding/setup-assistant";
 import { cn } from "@/lib/utils/cn";
 
 const navigation = [
@@ -13,6 +14,7 @@ const navigation = [
   { page: "exams", href: "/exams", label: "Examens", icon: GraduationCap },
   { page: "availability", href: "/availability", label: "Disponibilités", icon: Clock3 },
   { page: "settings", href: "/settings", label: "Paramètres", icon: Settings2 },
+  { page: "guide", href: "/getting-started", label: "Guide de démarrage", icon: Compass },
 ] as const;
 
 export function AppShell({ children, fullName, activePage = "dashboard" }: { children: ReactNode; fullName: string; activePage?: ActivePage }) {
@@ -37,6 +39,7 @@ export function AppShell({ children, fullName, activePage = "dashboard" }: { chi
       <MobileNavigation activePage={activePage} fullName={fullName} />
       <div className="min-w-0 lg:pl-60">
         <main id="main-content" className="mx-auto w-full max-w-6xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-10 lg:py-10">
+          {activePage !== "guide" && <Suspense fallback={null}><SetupAssistant page={activePage} /></Suspense>}
           {children}
         </main>
       </div>

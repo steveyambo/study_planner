@@ -28,6 +28,7 @@ Le projet comprend actuellement la planification, l’enregistrement, le calendr
 | Domaine | Fonctionnement actuel |
 | --- | --- |
 | Compte | Inscription, confirmation par courriel, renvoi du lien, connexion et déconnexion. |
+| Guide de démarrage | Explications pas à pas, progression vérifiée sur les données enregistrées, pause et reprise jusqu’au premier planning. |
 | Matières | Création, modification, coefficient de révision et archivage avec conservation du suivi. |
 | Horaires de cours | Plusieurs horaires hebdomadaires par matière, avec une période de début et de fin propre à chaque matière. |
 | Examens | Dates, heures et importance prises en compte dans la planification. |
@@ -172,10 +173,14 @@ Le guide [Configuration Supabase](docs/supabase-setup.md) et le guide [Authentif
 
 ### Créer son premier planning
 
+À la première connexion, le tableau de bord propose **Commencer le guide**. Le parcours `/getting-started` explique le principe, puis accompagne la création des matières, leurs horaires, les disponibilités, les examens facultatifs et le premier planning. Les étapes déjà renseignées sont reconnues automatiquement. Les réglages de répétition peuvent garder leurs valeurs initiales.
+
+Un rappel accompagne les pages de configuration tant que le guide est actif. **Plus tard** permet de le quitter ; **Guide de démarrage**, dans le menu (sur téléphone : **Plus**), permet de le retrouver. Les préférences du guide sont conservées dans ce navigateur, séparément pour chaque compte. Les cours, disponibilités et le planning restent dans Supabase : leur progression est reconnue aussi sur un autre appareil. Aucune migration supplémentaire n’est nécessaire. Voir [le guide et ses vérifications](docs/guided-setup.md).
+
 1. Créer un compte, confirmer l’adresse si nécessaire et se connecter.
 2. Dans **Mes cours**, ajouter les matières, leur coefficient de révision et, si nécessaire, leurs dates de début et de fin.
 3. Ajouter les horaires hebdomadaires de chaque matière.
-4. Dans **Examens**, renseigner les dates, les heures et l’importance des examens.
+4. Dans **Examens**, renseigner les dates, les heures et l’importance des examens si elles sont connues. Cette étape est facultative.
 5. Dans **Disponibilités**, indiquer les créneaux pendant lesquels on souhaite réviser.
 6. Dans **Paramètres**, adapter les intervalles de répétition.
 7. Dans **Planification**, choisir les périodes, la pause et l’option de rattrapage.
@@ -268,6 +273,7 @@ src/
 │   ├── dashboard/        Suivi et statistiques
 │   ├── exams/            Gestion des examens
 │   ├── http/             Origine des requêtes et redirections
+│   ├── onboarding/       Progression et reprise du guide de démarrage
 │   ├── scheduler/        Calcul du planning et de ses contraintes
 │   ├── supabase/         Clients Supabase et accès authentifié
 │   └── utils/            Utilitaires partagés
@@ -285,13 +291,14 @@ docs/                     Guides fonctionnels et techniques
 | `/login` | Connexion |
 | `/auth/callback` | Retour de confirmation Supabase |
 | `/dashboard` | Révisions à suivre et statistiques |
+| `/getting-started` | Guide de configuration pas à pas |
 | `/courses` | Matières et horaires |
 | `/exams` | Examens |
 | `/availability` | Disponibilités |
 | `/settings` | Paramètres de répétition |
 | `/calendar` | Aperçu de planification et calendrier enregistré |
 
-Les six espaces applicatifs, de `/dashboard` à `/calendar`, et leurs sous-routes nécessitent une session authentifiée. Les modifications utilisent des routes POST dédiées et des validations côté serveur.
+Les espaces applicatifs et le guide de démarrage nécessitent une session authentifiée. Les modifications utilisent des routes POST dédiées et des validations côté serveur.
 
 ## Commandes et tests
 

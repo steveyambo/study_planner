@@ -40,7 +40,7 @@ export async function updateSession(request: NextRequest) {
   const { data, error } = await supabase.auth.getClaims();
   const authenticated = !error && Boolean(data?.claims.sub);
   const pathname = request.nextUrl.pathname;
-  const privateRoutes = ["/dashboard", "/courses", "/exams", "/availability", "/calendar", "/settings"];
+  const privateRoutes = ["/dashboard", "/getting-started", "/courses", "/exams", "/availability", "/calendar", "/settings"];
   const privateRoute = privateRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
   let destination: string | undefined;
